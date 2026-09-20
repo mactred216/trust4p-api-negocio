@@ -1,9 +1,11 @@
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from src.aplicacion.casos_uso.completar_registro import CompletarRegistro
 from src.aplicacion.casos_uso.iniciar_sesion import IniciarSesion
 from src.aplicacion.casos_uso.radicar_solicitud import RadicarSolicitud
 from src.aplicacion.casos_uso.resolver_solicitud import ResolverSolicitud
+from src.dominio.puertos.repositorio_token import RepositorioToken
 from src.infraestructura.persistencia.conexion import obtener_base_datos
 from src.infraestructura.persistencia.repositorio_mongo_empresa import \
     RepositorioMongoEmpresa
@@ -11,6 +13,8 @@ from src.infraestructura.persistencia.repositorio_mongo_sesion import \
     RepositorioMongoSesion
 from src.infraestructura.persistencia.repositorio_mongo_solicitud import \
     RepositorioMongoSolicitud
+from src.infraestructura.persistencia.repositorio_mongo_token import \
+    RepositorioMongoToken
 from src.infraestructura.persistencia.repositorio_mongo_usuario import \
     RepositorioMongoUsuario
 
@@ -94,3 +98,25 @@ def obtener_caso_uso_reactivar_empresa(
     repo: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
 ) -> ReactivarEmpresa:
     return ReactivarEmpresa(repo)
+
+
+def obtener_repositorio_token(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoToken:
+    return RepositorioMongoToken(db)
+
+
+def obtener_caso_uso_resolver_solicitud(
+    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+) -> ResolverSolicitud:
+    return ResolverSolicitud(repo_solicitud, repo_empresa, repo_token)
+
+
+def obtener_caso_uso_completar_registro(
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+) -> CompletarRegistro:
+    return CompletarRegistro(repo_token, repo_usuario, repo_solicitud)

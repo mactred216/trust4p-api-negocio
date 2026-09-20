@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from src.api.dependencias import (obtener_caso_uso_consultar_empresa,
                                   obtener_caso_uso_desactivar_empresa,
@@ -33,6 +33,27 @@ class EditarEmpresaRequest(BaseModel):
     nit: Optional[str] = None
     numero_empleados: Optional[int] = None
     ciudad: Optional[str] = None
+
+    @field_validator("nombre", "nit", "ciudad")
+    @classmethod
+    def si_viene_no_vacio(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            raise ValueError("Si se envía este campo, no puede estar vacío")
+        return v
+
+    @field_validator("numero_empleados")
+    @classmethod
+    def numero_empleados_valido(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("El número de empleados no puede ser negativo")
+        if v > 1_000_000:
+            raise ValueError("Valor de empleados no razonable")
+        return v
 
 
 def _a_response(empresa) -> EmpresaResponse:

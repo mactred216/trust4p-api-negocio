@@ -45,6 +45,16 @@ class RepositorioMongoSesion(RepositorioSesion):
             return None
         return doc["usuario_id"]
 
+    async def obtener_sesion_por_token(self, token: str) -> Optional[dict]:
+        token_hash = self._hash(token)
+        doc = await self._coleccion.find_one(
+            {
+                "token_hash": token_hash,
+                "expira_en": {"$gt": datetime.now(timezone.utc)},
+            }
+        )
+        return doc
+
     async def revocar(self, token: str) -> None:
         token_hash = self._hash(token)
         await self._coleccion.delete_one({"token_hash": token_hash})

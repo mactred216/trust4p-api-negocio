@@ -1,9 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
-from src.api.dependencias import obtener_caso_uso_radicar_solicitud
+from src.api.dependencias import (obtener_caso_uso_radicar_solicitud,
+                                  obtener_caso_uso_resolver_solicitud)
+from src.api.middleware.autorizacion import requiere_rol
 from src.aplicacion.casos_uso.radicar_solicitud import (RadicarSolicitud,
                                                         SolicitudDuplicada)
+from src.aplicacion.casos_uso.resolver_solicitud import (ResolverSolicitud,
+                                                         SolicitudNoEncontrada)
+from src.dominio.entidades.empresa import Sector
 
 router = APIRouter(prefix="/solicitudes-acceso", tags=["solicitudes"])
 
@@ -18,6 +23,21 @@ class SolicitudResponse(BaseModel):
     id: str
     nombre_empresa: str
     estado: str
+
+
+class AprobarSolicitudRequest(BaseModel):
+    sector_id: str
+    sector_codigo: str
+    sector_nombre: str
+
+
+class RechazarSolicitudRequest(BaseModel):
+    motivo: str
+
+
+class EmpresaResponse(BaseModel):
+    id: str
+    nombre: str
 
 
 @router.post("", response_model=SolicitudResponse, status_code=201)
@@ -42,3 +62,46 @@ async def radicar_solicitud(
         nombre_empresa=solicitud.nombre_empresa,
         estado=solicitud.estado.value,
     )
+
+
+@router.post(
+    "/{solicitud_id}/aprobar",
+    response_model=EmpresaResponse,
+    summary="Aprobar una solicitud de acceso",
+    description="Exclusivo del administrador. Crea la empresa y marca la solicitud como aprobada.",
+)
+async def aprobar_solicitud(
+    solicitud_id: str,
+    datos: AprobarSolicitudRequest,
+    caso_uso: ResolverSolicitud = Depends(obtener_caso_uso_resolver_solicitud),
+    usuario_id: str = Depends(requiere_rol("administrador")),
+):
+    sector = Sector(
+        id=datos.sector_id, codigo=datos.sector_codigo, nombre=datos.sector_nombre
+    )
+    try:
+        empresa = await caso_uso.aprobar(solicitud_id, sector)
+    except SolicitudNoEncontrada:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+    return EmpresaResponse(id=empresa.id, nombre=empresa.nombre)
+
+
+@router.post(
+    "/{solicitud_id}/rechazar",
+    status_code=204,
+    summary="Rechazar una solicitud de acceso",
+    description="Exclusivo del administrador. Exige un motivo explícito.",
+)
+async def rechazar_solicitud(
+    solicitud_id: str,
+    datos: RechazarSolicitudRequest,
+    caso_uso: ResolverSolicitud = Depends(obtener_caso_uso_resolver_solicitud),
+    usuario_id: str = Depends(requiere_rol("administrador")),
+):
+    try:
+        await caso_uso.rechazar(solicitud_id, datos.motivo)
+    except SolicitudNoEncontrada:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

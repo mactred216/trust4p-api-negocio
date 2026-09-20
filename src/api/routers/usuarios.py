@@ -3,12 +3,18 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
 
-from src.api.dependencias import (obtener_caso_uso_consultar_usuario,
+from src.api.dependencias import (obtener_caso_uso_asignar_consultor,
+                                  obtener_caso_uso_consultar_usuario,
                                   obtener_caso_uso_desactivar_usuario,
                                   obtener_caso_uso_editar_usuario,
                                   obtener_caso_uso_listar_usuarios,
                                   obtener_caso_uso_reactivar_usuario)
 from src.api.middleware.autorizacion import requiere_rol
+from src.aplicacion.casos_uso.asignar_consultor import (AsignarConsultor,
+                                                        ConsultorInactivo,
+                                                        ConsultorNoEncontrado,
+                                                        EmpresaInactiva,
+                                                        EmpresaNoEncontrada)
 from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
                                                          DesactivarUsuario,
                                                          EditarUsuario,
@@ -55,6 +61,17 @@ class EditarUsuarioRequest(BaseModel):
             raise ValueError(
                 f"Rol inválido. Debe ser uno de: {', '.join(ROLES_VALIDOS)}"
             )
+        return v
+
+
+class AsignacionRequest(BaseModel):
+    empresa_id: str
+
+    @field_validator("empresa_id")
+    @classmethod
+    def empresa_id_no_vacio(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("El id de la empresa es obligatorio")
         return v
 
 
@@ -134,3 +151,48 @@ async def reactivar_usuario(
         await caso_uso.ejecutar(usuario_id)
     except UsuarioNoEncontrado:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+
+@router.post(
+    "/{consultor_id}/asignaciones",
+    status_code=204,
+    summary="Asignar una empresa a un consultor",
+    description="Exclusivo del administrador. El usuario objetivo debe tener rol consultor.",
+)
+async def asignar_empresa_a_consultor(
+    consultor_id: str,
+    datos: AsignacionRequest,
+    caso_uso: AsignarConsultor = Depends(obtener_caso_uso_asignar_consultor),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+):
+    try:
+        await caso_uso.asignar(consultor_id, datos.empresa_id)
+    except ConsultorNoEncontrado:
+        raise HTTPException(status_code=404, detail="Consultor no encontrado")
+    except EmpresaNoEncontrada:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    except ConsultorInactivo:
+        raise HTTPException(status_code=400, detail="El consultor está inactivo")
+    except EmpresaInactiva:
+        raise HTTPException(status_code=400, detail="La empresa está inactiva")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete(
+    "/{consultor_id}/asignaciones/{empresa_id}",
+    status_code=204,
+    summary="Finalizar la asignación de un consultor a una empresa",
+)
+async def finalizar_asignacion(
+    consultor_id: str,
+    empresa_id: str,
+    caso_uso: AsignarConsultor = Depends(obtener_caso_uso_asignar_consultor),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+):
+    try:
+        await caso_uso.finalizar(consultor_id, empresa_id)
+    except ConsultorNoEncontrado:
+        raise HTTPException(status_code=404, detail="Consultor no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

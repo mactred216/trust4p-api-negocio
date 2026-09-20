@@ -1,6 +1,7 @@
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from src.aplicacion.casos_uso.asignar_consultor import AsignarConsultor
 from src.aplicacion.casos_uso.completar_registro import CompletarRegistro
 from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
                                                          DesactivarUsuario,
@@ -174,3 +175,10 @@ def obtener_caso_uso_reactivar_usuario(
     repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
 ) -> ReactivarUsuario:
     return ReactivarUsuario(repo)
+
+
+def obtener_caso_uso_asignar_consultor(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+) -> AsignarConsultor:
+    return AsignarConsultor(repo_usuario, repo_empresa)

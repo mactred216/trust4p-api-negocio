@@ -3,7 +3,7 @@ from typing import Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from src.dominio.entidades.usuario import Rol, Usuario
+from src.dominio.entidades.usuario import Asignacion, Rol, Usuario
 from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
 
 
@@ -14,6 +14,12 @@ class RepositorioMongoUsuario(RepositorioUsuario):
 
     async def obtener_por_correo(self, correo: str) -> Optional[Usuario]:
         doc = await self._coleccion.find_one({"correo": correo, "activo": True})
+        if doc is None:
+            return None
+        return self._a_entidad(doc)
+
+    async def obtener_por_id(self, usuario_id: str) -> Optional[Usuario]:
+        doc = await self._coleccion.find_one({"_id": ObjectId(usuario_id)})
         if doc is None:
             return None
         return self._a_entidad(doc)
@@ -30,7 +36,25 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             {"$set": self._a_documento(usuario)},
         )
 
+    async def listar_por_empresa(self, empresa_id: str) -> list[Usuario]:
+        cursor = self._coleccion.find({"empresa_id": empresa_id, "activo": True})
+        documentos = await cursor.to_list(length=None)
+        return [self._a_entidad(doc) for doc in documentos]
+
+    async def listar_todos(self) -> list[Usuario]:
+        cursor = self._coleccion.find({})
+        documentos = await cursor.to_list(length=None)
+        return [self._a_entidad(doc) for doc in documentos]
+
     def _a_entidad(self, doc: dict) -> Usuario:
+        asignaciones = [
+            Asignacion(
+                empresa_id=a["empresa_id"],
+                asignado_en=a["asignado_en"],
+                finalizado_en=a.get("finalizado_en"),
+            )
+            for a in doc.get("asignaciones", [])
+        ]
         return Usuario(
             id=str(doc["_id"]),
             correo=doc["correo"],
@@ -41,6 +65,8 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             empresa_id=doc.get("empresa_id"),
             intentos_fallidos=doc.get("intentos_fallidos", 0),
             bloqueado_hasta=doc.get("bloqueado_hasta"),
+            activo=doc.get("activo", True),
+            asignaciones=asignaciones,
         )
 
     def _a_documento(self, usuario: Usuario) -> dict:
@@ -54,20 +80,12 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             "intentos_fallidos": usuario.intentos_fallidos,
             "bloqueado_hasta": usuario.bloqueado_hasta,
             "activo": usuario.activo,
+            "asignaciones": [
+                {
+                    "empresa_id": a.empresa_id,
+                    "asignado_en": a.asignado_en,
+                    "finalizado_en": a.finalizado_en,
+                }
+                for a in usuario.asignaciones
+            ],
         }
-
-    async def obtener_por_id(self, usuario_id: str) -> Optional[Usuario]:
-        doc = await self._coleccion.find_one({"_id": ObjectId(usuario_id)})
-        if doc is None:
-            return None
-        return self._a_entidad(doc)
-
-    async def listar_por_empresa(self, empresa_id: str) -> list[Usuario]:
-        cursor = self._coleccion.find({"empresa_id": empresa_id, "activo": True})
-        documentos = await cursor.to_list(length=None)
-        return [self._a_entidad(doc) for doc in documentos]
-
-    async def listar_todos(self) -> list[Usuario]:
-        cursor = self._coleccion.find({})
-        documentos = await cursor.to_list(length=None)
-        return [self._a_entidad(doc) for doc in documentos]

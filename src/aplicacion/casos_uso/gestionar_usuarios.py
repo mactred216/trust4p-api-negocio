@@ -70,7 +70,7 @@ class DesactivarUsuario:
         if usuario is None:
             raise UsuarioNoEncontrado()
 
-        usuario.activo = False
+        usuario.desactivar()
         await self._usuarios.actualizar(usuario)
 
 
@@ -83,5 +83,5 @@ class ReactivarUsuario:
         if usuario is None:
             raise UsuarioNoEncontrado()
 
-        usuario.activo = True
+        usuario.reactivar()
         await self._usuarios.actualizar(usuario)

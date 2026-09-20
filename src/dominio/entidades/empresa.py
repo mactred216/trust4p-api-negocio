@@ -22,8 +22,11 @@ class Empresa:
     creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def desactivar(self) -> None:
-        """Baja lógica. Los diagnósticos asociados se conservan (regla R-06)."""
+        if not self.activo:
+            raise ValueError("La empresa ya se encuentra inactiva")
         self.activo = False
 
     def reactivar(self) -> None:
+        if self.activo:
+            raise ValueError("La empresa ya se encuentra activa")
         self.activo = True

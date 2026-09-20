@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, field_validator
 
 from src.api.dependencias import (obtener_caso_uso_radicar_solicitud,
-                                  obtener_caso_uso_resolver_solicitud)
+                                  obtener_caso_uso_resolver_solicitud,
+                                  obtener_repositorio_auditoria)
+from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
 from src.aplicacion.casos_uso.radicar_solicitud import (RadicarSolicitud,
                                                         SolicitudDuplicada)
@@ -109,6 +111,7 @@ async def aprobar_solicitud(
     datos: AprobarSolicitudRequest,
     caso_uso: ResolverSolicitud = Depends(obtener_caso_uso_resolver_solicitud),
     usuario_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     sector = Sector(
         id=datos.sector_id, codigo=datos.sector_codigo, nombre=datos.sector_nombre
@@ -118,6 +121,15 @@ async def aprobar_solicitud(
         print(f"CÓDIGO DE INVITACIÓN (temporal, solo para pruebas): {codigo}")
     except SolicitudNoEncontrada:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "solicitudes_acceso",
+        solicitud_id,
+        "actualizar",
+        valores_nuevos={"estado": "aprobada", "empresa_id": empresa.id},
+    )
 
     return EmpresaResponse(id=empresa.id, nombre=empresa.nombre)
 
@@ -133,6 +145,7 @@ async def rechazar_solicitud(
     datos: RechazarSolicitudRequest,
     caso_uso: ResolverSolicitud = Depends(obtener_caso_uso_resolver_solicitud),
     usuario_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         await caso_uso.rechazar(solicitud_id, datos.motivo)
@@ -140,3 +153,12 @@ async def rechazar_solicitud(
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "solicitudes_acceso",
+        solicitud_id,
+        "actualizar",
+        valores_nuevos={"estado": "rechazada", "motivo": datos.motivo},
+    )

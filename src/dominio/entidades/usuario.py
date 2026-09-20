@@ -50,6 +50,16 @@ class Usuario:
         self.intentos_fallidos = 0
         self.bloqueado_hasta = None
 
+    def desactivar(self) -> None:
+        if not self.activo:
+            raise ValueError("El usuario ya se encuentra inactivo")
+        self.activo = False
+
+    def reactivar(self) -> None:
+        if self.activo:
+            raise ValueError("El usuario ya se encuentra activo")
+        self.activo = True
+
     def asignar_empresa(self, empresa_id: str) -> None:
         """RF-27. Una empresa puede tener varios consultores; un consultor, varias empresas."""
         if self.rol.codigo != "consultor":

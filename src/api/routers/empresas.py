@@ -7,7 +7,9 @@ from src.api.dependencias import (obtener_caso_uso_consultar_empresa,
                                   obtener_caso_uso_desactivar_empresa,
                                   obtener_caso_uso_editar_empresa,
                                   obtener_caso_uso_listar_empresas,
-                                  obtener_caso_uso_reactivar_empresa)
+                                  obtener_caso_uso_reactivar_empresa,
+                                  obtener_repositorio_auditoria)
+from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
 from src.aplicacion.casos_uso.gestionar_empresas import (ConsultarEmpresa,
                                                          DesactivarEmpresa,
@@ -114,12 +116,22 @@ async def editar_empresa(
 async def desactivar_empresa(
     empresa_id: str,
     caso_uso: DesactivarEmpresa = Depends(obtener_caso_uso_desactivar_empresa),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         await caso_uso.ejecutar(empresa_id)
     except EmpresaNoEncontrada:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "empresas",
+        empresa_id,
+        "actualizar",
+        valores_nuevos={"activo": False},
+    )
 
 
 @router.post("/{empresa_id}/reactivar", status_code=204)

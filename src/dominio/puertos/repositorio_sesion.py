@@ -22,3 +22,6 @@ class RepositorioSesion(ABC):
 
     @abstractmethod
     async def revocar(self, token: str) -> None: ...
+
+    @abstractmethod
+    async def revocar_todas_de_usuario(self, usuario_id: str) -> None: ...

@@ -14,6 +14,13 @@ from src.aplicacion.casos_uso.iniciar_sesion import (CredencialesInvalidas,
 
 router = APIRouter(prefix="/auth", tags=["autenticacion"])
 
+from src.api.dependencias import (obtener_caso_uso_restablecer_contrasena,
+                                  obtener_caso_uso_solicitar_restablecimiento)
+from src.aplicacion.casos_uso.recuperar_contrasena import (
+    RestablecerContrasena, SolicitarRestablecimiento)
+from src.aplicacion.casos_uso.recuperar_contrasena import \
+    TokenInvalido as TokenRestablecimientoInvalido
+
 
 class LoginRequest(BaseModel):
     correo: EmailStr
@@ -83,6 +90,42 @@ class UsuarioResponse(BaseModel):
     apellidos: str
 
 
+class SolicitarRestablecimientoRequest(BaseModel):
+    correo: EmailStr
+
+
+class RestablecerContrasenaRequest(BaseModel):
+    codigo_token: str
+    clave_nueva: str
+
+    @field_validator("codigo_token")
+    @classmethod
+    def codigo_no_vacio(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("El código de restablecimiento es obligatorio")
+        return v
+
+    @field_validator("clave_nueva")
+    @classmethod
+    def clave_cumple_politica(cls, v: str) -> str:
+        if len(v) < 12:
+            raise ValueError("La contraseña debe tener al menos 12 caracteres")
+        tiene_mayuscula = re.search(r"[A-Z]", v) is not None
+        tiene_minuscula = re.search(r"[a-z]", v) is not None
+        tiene_numero = re.search(r"\d", v) is not None
+        tiene_especial = re.search(r"[^A-Za-z0-9]", v) is not None
+        if sum([tiene_mayuscula, tiene_minuscula, tiene_numero, tiene_especial]) < 3:
+            raise ValueError(
+                "La contraseña debe combinar al menos tres de: "
+                "mayúsculas, minúsculas, números y caracteres especiales"
+            )
+        return v
+
+
+class MensajeResponse(BaseModel):
+    mensaje: str
+
+
 @router.post(
     "/login",
     response_model=LoginResponse,
@@ -147,3 +190,41 @@ async def completar_registro(
         nombres=usuario.nombres,
         apellidos=usuario.apellidos,
     )
+
+
+@router.post(
+    "/solicitar-restablecimiento",
+    response_model=MensajeResponse,
+    summary="Solicitar restablecimiento de contraseña",
+    description="Por seguridad, responde el mismo mensaje exista o no el correo registrado.",
+)
+async def solicitar_restablecimiento(
+    datos: SolicitarRestablecimientoRequest,
+    caso_uso: SolicitarRestablecimiento = Depends(
+        obtener_caso_uso_solicitar_restablecimiento
+    ),
+):
+    await caso_uso.ejecutar(datos.correo)
+    return MensajeResponse(
+        mensaje="Si el correo está registrado, recibirá un enlace de restablecimiento."
+    )
+
+
+@router.post(
+    "/restablecer-contrasena",
+    response_model=MensajeResponse,
+    summary="Restablecer contraseña",
+    description="Consume el token de restablecimiento y revoca todas las sesiones activas.",
+)
+async def restablecer_contrasena(
+    datos: RestablecerContrasenaRequest,
+    caso_uso: RestablecerContrasena = Depends(obtener_caso_uso_restablecer_contrasena),
+):
+    try:
+        await caso_uso.ejecutar(datos.codigo_token, datos.clave_nueva)
+    except TokenRestablecimientoInvalido:
+        raise HTTPException(
+            status_code=401, detail="Token inválido, expirado o ya utilizado"
+        )
+
+    return MensajeResponse(mensaje="Contraseña actualizada correctamente")

@@ -55,3 +55,19 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             "bloqueado_hasta": usuario.bloqueado_hasta,
             "activo": usuario.activo,
         }
+
+    async def obtener_por_id(self, usuario_id: str) -> Optional[Usuario]:
+        doc = await self._coleccion.find_one({"_id": ObjectId(usuario_id)})
+        if doc is None:
+            return None
+        return self._a_entidad(doc)
+
+    async def listar_por_empresa(self, empresa_id: str) -> list[Usuario]:
+        cursor = self._coleccion.find({"empresa_id": empresa_id, "activo": True})
+        documentos = await cursor.to_list(length=None)
+        return [self._a_entidad(doc) for doc in documentos]
+
+    async def listar_todos(self) -> list[Usuario]:
+        cursor = self._coleccion.find({})
+        documentos = await cursor.to_list(length=None)
+        return [self._a_entidad(doc) for doc in documentos]

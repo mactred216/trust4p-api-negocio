@@ -2,6 +2,11 @@ from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.aplicacion.casos_uso.completar_registro import CompletarRegistro
+from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
+                                                         DesactivarUsuario,
+                                                         EditarUsuario,
+                                                         ListarUsuarios,
+                                                         ReactivarUsuario)
 from src.aplicacion.casos_uso.iniciar_sesion import IniciarSesion
 from src.aplicacion.casos_uso.radicar_solicitud import RadicarSolicitud
 from src.aplicacion.casos_uso.resolver_solicitud import ResolverSolicitud
@@ -139,3 +144,33 @@ def obtener_caso_uso_restablecer_contrasena(
     repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
 ) -> RestablecerContrasena:
     return RestablecerContrasena(repo_usuario, repo_token, repo_sesion)
+
+
+def obtener_caso_uso_listar_usuarios(
+    repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> ListarUsuarios:
+    return ListarUsuarios(repo)
+
+
+def obtener_caso_uso_consultar_usuario(
+    repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> ConsultarUsuario:
+    return ConsultarUsuario(repo)
+
+
+def obtener_caso_uso_editar_usuario(
+    repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> EditarUsuario:
+    return EditarUsuario(repo)
+
+
+def obtener_caso_uso_desactivar_usuario(
+    repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> DesactivarUsuario:
+    return DesactivarUsuario(repo)
+
+
+def obtener_caso_uso_reactivar_usuario(
+    repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> ReactivarUsuario:
+    return ReactivarUsuario(repo)

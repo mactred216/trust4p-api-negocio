@@ -77,11 +77,15 @@ def obtener_caso_uso_resolver_solicitud(
     return ResolverSolicitud(repo_solicitud, repo_empresa)
 
 
+from src.aplicacion.casos_uso.consultar_auditoria import ConsultarAuditoria
 from src.aplicacion.casos_uso.gestionar_empresas import (ConsultarEmpresa,
                                                          DesactivarEmpresa,
                                                          EditarEmpresa,
                                                          ListarEmpresas,
                                                          ReactivarEmpresa)
+from src.dominio.puertos.repositorio_auditoria import RepositorioAuditoria
+from src.infraestructura.persistencia.repositorio_mongo_auditoria import \
+    RepositorioMongoAuditoria
 
 
 def obtener_caso_uso_listar_empresas(
@@ -227,3 +231,15 @@ def obtener_caso_uso_quitar_permiso(
     repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
 ) -> QuitarPermisoDeRol:
     return QuitarPermisoDeRol(repo_rol)
+
+
+def obtener_repositorio_auditoria(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoAuditoria:
+    return RepositorioMongoAuditoria(db)
+
+
+def obtener_caso_uso_consultar_auditoria(
+    repo: RepositorioMongoAuditoria = Depends(obtener_repositorio_auditoria),
+) -> ConsultarAuditoria:
+    return ConsultarAuditoria(repo)

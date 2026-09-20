@@ -92,3 +92,28 @@ async def test_reactivar_empresa_la_marca_activa():
     await caso_uso.ejecutar("emp-1")
 
     assert empresa.activo is True
+
+
+@pytest.mark.asyncio
+async def test_no_se_puede_desactivar_empresa_ya_inactiva():
+    empresa = crear_empresa_prueba()
+    empresa.activo = False
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = empresa
+
+    caso_uso = DesactivarEmpresa(repo)
+
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("emp-1")
+
+
+@pytest.mark.asyncio
+async def test_no_se_puede_reactivar_empresa_ya_activa():
+    empresa = crear_empresa_prueba()
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = empresa
+
+    caso_uso = ReactivarEmpresa(repo)
+
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("emp-1")

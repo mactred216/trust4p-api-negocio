@@ -4,7 +4,9 @@ from pydantic import BaseModel, field_validator
 from src.api.dependencias import (obtener_caso_uso_agregar_permiso,
                                   obtener_caso_uso_listar_permisos,
                                   obtener_caso_uso_listar_roles,
-                                  obtener_caso_uso_quitar_permiso)
+                                  obtener_caso_uso_quitar_permiso,
+                                  obtener_repositorio_auditoria)
+from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
 from src.aplicacion.casos_uso.gestionar_roles import (AgregarPermisoARol,
                                                       ListarPermisos,
@@ -80,6 +82,7 @@ async def agregar_permiso(
     datos: PermisoRequest,
     caso_uso: AgregarPermisoARol = Depends(obtener_caso_uso_agregar_permiso),
     usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         rol = await caso_uso.ejecutar(codigo_rol, datos.codigo_permiso)
@@ -89,6 +92,15 @@ async def agregar_permiso(
         raise HTTPException(
             status_code=404, detail="Permiso no encontrado en el catálogo"
         )
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "roles",
+        codigo_rol,
+        "actualizar",
+        valores_nuevos={"permiso_agregado": datos.codigo_permiso},
+    )
     return RolResponse(
         id=rol.id,
         codigo=rol.codigo,
@@ -104,6 +116,7 @@ async def quitar_permiso(
     codigo_permiso: str,
     caso_uso: QuitarPermisoDeRol = Depends(obtener_caso_uso_quitar_permiso),
     usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         rol = await caso_uso.ejecutar(codigo_rol, codigo_permiso)
@@ -111,6 +124,15 @@ async def quitar_permiso(
         raise HTTPException(status_code=404, detail="Rol no encontrado")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "roles",
+        codigo_rol,
+        "actualizar",
+        valores_nuevos={"permiso_quitado": codigo_permiso},
+    )
     return RolResponse(
         id=rol.id,
         codigo=rol.codigo,

@@ -23,6 +23,8 @@ from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
                                                          UsuarioNoEncontrado)
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
+from src.api.dependencias import obtener_repositorio_auditoria
+from src.api.middleware.auditoria import registrar_accion
 
 ROLES_VALIDOS = {"administrador", "consultor", "representante"}
 
@@ -130,6 +132,7 @@ async def desactivar_usuario(
     usuario_id: str,
     caso_uso: DesactivarUsuario = Depends(obtener_caso_uso_desactivar_usuario),
     usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     if usuario_id == usuario_actual_id:
         raise HTTPException(
@@ -139,6 +142,17 @@ async def desactivar_usuario(
         await caso_uso.ejecutar(usuario_id)
     except UsuarioNoEncontrado:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "usuarios",
+        usuario_id,
+        "actualizar",
+        valores_nuevos={"activo": False},
+    )
 
 
 @router.post("/{usuario_id}/reactivar", status_code=204)
@@ -146,11 +160,23 @@ async def reactivar_usuario(
     usuario_id: str,
     caso_uso: ReactivarUsuario = Depends(obtener_caso_uso_reactivar_usuario),
     usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         await caso_uso.ejecutar(usuario_id)
     except UsuarioNoEncontrado:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "usuarios",
+        usuario_id,
+        "actualizar",
+        valores_nuevos={"activo": True},
+    )
 
 
 @router.post(

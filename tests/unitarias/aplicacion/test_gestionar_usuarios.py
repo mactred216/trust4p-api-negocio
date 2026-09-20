@@ -106,3 +106,28 @@ async def test_reactivar_usuario():
     await caso_uso.ejecutar("user-1")
 
     assert usuario.activo is True
+
+
+@pytest.mark.asyncio
+async def test_no_se_puede_desactivar_usuario_ya_inactivo():
+    usuario = crear_usuario_prueba()
+    usuario.activo = False
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = usuario
+
+    caso_uso = DesactivarUsuario(repo)
+
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("user-1")
+
+
+@pytest.mark.asyncio
+async def test_no_se_puede_reactivar_usuario_ya_activo():
+    usuario = crear_usuario_prueba()
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = usuario
+
+    caso_uso = ReactivarUsuario(repo)
+
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("user-1")

@@ -1,10 +1,15 @@
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from src.aplicacion.casos_uso.iniciar_sesion import IniciarSesion
 from src.aplicacion.casos_uso.radicar_solicitud import RadicarSolicitud
 from src.infraestructura.persistencia.conexion import obtener_base_datos
+from src.infraestructura.persistencia.repositorio_mongo_sesion import \
+    RepositorioMongoSesion
 from src.infraestructura.persistencia.repositorio_mongo_solicitud import \
     RepositorioMongoSolicitud
+from src.infraestructura.persistencia.repositorio_mongo_usuario import \
+    RepositorioMongoUsuario
 
 
 def obtener_repositorio_solicitud(
@@ -17,3 +22,22 @@ def obtener_caso_uso_radicar_solicitud(
     repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
 ) -> RadicarSolicitud:
     return RadicarSolicitud(repo)
+
+
+def obtener_repositorio_usuario(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoUsuario:
+    return RepositorioMongoUsuario(db)
+
+
+def obtener_repositorio_sesion(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoSesion:
+    return RepositorioMongoSesion(db)
+
+
+def obtener_caso_uso_iniciar_sesion(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+) -> IniciarSesion:
+    return IniciarSesion(repo_usuario, repo_sesion)

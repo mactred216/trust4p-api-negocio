@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from src.api.routers import solicitudes
+from src.api.routers import autenticacion, solicitudes
 from src.infraestructura.persistencia.conexion import obtener_cliente
 
 load_dotenv()
@@ -9,6 +9,7 @@ load_dotenv()
 app = FastAPI(title="Trust 4P - API de Negocio")
 
 app.include_router(solicitudes.router)
+app.include_router(autenticacion.router)
 
 
 @app.get("/salud")

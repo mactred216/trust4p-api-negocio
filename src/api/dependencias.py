@@ -3,7 +3,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.aplicacion.casos_uso.iniciar_sesion import IniciarSesion
 from src.aplicacion.casos_uso.radicar_solicitud import RadicarSolicitud
+from src.aplicacion.casos_uso.resolver_solicitud import ResolverSolicitud
 from src.infraestructura.persistencia.conexion import obtener_base_datos
+from src.infraestructura.persistencia.repositorio_mongo_empresa import \
+    RepositorioMongoEmpresa
 from src.infraestructura.persistencia.repositorio_mongo_sesion import \
     RepositorioMongoSesion
 from src.infraestructura.persistencia.repositorio_mongo_solicitud import \
@@ -41,3 +44,16 @@ def obtener_caso_uso_iniciar_sesion(
     repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
 ) -> IniciarSesion:
     return IniciarSesion(repo_usuario, repo_sesion)
+
+
+def obtener_repositorio_empresa(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoEmpresa:
+    return RepositorioMongoEmpresa(db)
+
+
+def obtener_caso_uso_resolver_solicitud(
+    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+) -> ResolverSolicitud:
+    return ResolverSolicitud(repo_solicitud, repo_empresa)

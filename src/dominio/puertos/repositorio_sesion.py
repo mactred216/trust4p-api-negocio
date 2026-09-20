@@ -16,4 +16,9 @@ class RepositorioSesion(ABC):
     async def obtener_usuario_id_por_token(self, token: str) -> Optional[str]: ...
 
     @abstractmethod
+    async def obtener_sesion_por_token(self, token: str) -> Optional[dict]:
+        """Devuelve la sesión completa (incluye rol_codigo) para verificación de autorización."""
+        ...
+
+    @abstractmethod
     async def revocar(self, token: str) -> None: ...

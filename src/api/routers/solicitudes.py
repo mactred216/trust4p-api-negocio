@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 from src.api.dependencias import (obtener_caso_uso_radicar_solicitud,
                                   obtener_caso_uso_resolver_solicitud)
@@ -18,6 +18,18 @@ class RadicarSolicitudRequest(BaseModel):
     correo_solicitante: EmailStr
     nombre_solicitante: str
 
+    @field_validator("nombre_empresa", "nombre_solicitante")
+    @classmethod
+    def texto_no_vacio(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Este campo no puede estar vacío")
+        if len(v) < 2:
+            raise ValueError("Debe tener al menos 2 caracteres")
+        if len(v) > 200:
+            raise ValueError("No puede exceder 200 caracteres")
+        return v
+
 
 class SolicitudResponse(BaseModel):
     id: str
@@ -30,9 +42,31 @@ class AprobarSolicitudRequest(BaseModel):
     sector_codigo: str
     sector_nombre: str
 
+    @field_validator("sector_id", "sector_codigo", "sector_nombre")
+    @classmethod
+    def texto_no_vacio(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Este campo no puede estar vacío")
+        return v
+
 
 class RechazarSolicitudRequest(BaseModel):
     motivo: str
+
+    @field_validator("motivo")
+    @classmethod
+    def motivo_valido(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El motivo de rechazo es obligatorio")
+        if len(v) < 10:
+            raise ValueError(
+                "El motivo debe ser suficientemente descriptivo (mínimo 10 caracteres)"
+            )
+        if len(v) > 500:
+            raise ValueError("El motivo no puede exceder 500 caracteres")
+        return v
 
 
 class EmpresaResponse(BaseModel):
@@ -80,7 +114,8 @@ async def aprobar_solicitud(
         id=datos.sector_id, codigo=datos.sector_codigo, nombre=datos.sector_nombre
     )
     try:
-        empresa = await caso_uso.aprobar(solicitud_id, sector)
+        empresa, codigo = await caso_uso.aprobar(solicitud_id, sector)
+        print(f"CÓDIGO DE INVITACIÓN (temporal, solo para pruebas): {codigo}")
     except SolicitudNoEncontrada:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 

@@ -120,3 +120,22 @@ def obtener_caso_uso_completar_registro(
     repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
 ) -> CompletarRegistro:
     return CompletarRegistro(repo_token, repo_usuario, repo_solicitud)
+
+
+from src.aplicacion.casos_uso.recuperar_contrasena import (
+    RestablecerContrasena, SolicitarRestablecimiento)
+
+
+def obtener_caso_uso_solicitar_restablecimiento(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+) -> SolicitarRestablecimiento:
+    return SolicitarRestablecimiento(repo_usuario, repo_token)
+
+
+def obtener_caso_uso_restablecer_contrasena(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+) -> RestablecerContrasena:
+    return RestablecerContrasena(repo_usuario, repo_token, repo_sesion)

@@ -61,3 +61,6 @@ class RepositorioMongoSesion(RepositorioSesion):
 
     def _hash(self, token: str) -> str:
         return hashlib.sha256(token.encode()).hexdigest()
+
+    async def revocar_todas_de_usuario(self, usuario_id: str) -> None:
+        await self._coleccion.delete_many({"usuario_id": usuario_id})

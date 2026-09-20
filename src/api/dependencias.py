@@ -3,6 +3,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.aplicacion.casos_uso.asignar_consultor import AsignarConsultor
 from src.aplicacion.casos_uso.completar_registro import CompletarRegistro
+from src.aplicacion.casos_uso.gestionar_roles import (AgregarPermisoARol,
+                                                      ListarPermisos,
+                                                      ListarRoles,
+                                                      QuitarPermisoDeRol)
 from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
                                                          DesactivarUsuario,
                                                          EditarUsuario,
@@ -15,6 +19,10 @@ from src.dominio.puertos.repositorio_token import RepositorioToken
 from src.infraestructura.persistencia.conexion import obtener_base_datos
 from src.infraestructura.persistencia.repositorio_mongo_empresa import \
     RepositorioMongoEmpresa
+from src.infraestructura.persistencia.repositorio_mongo_permiso import \
+    RepositorioMongoPermiso
+from src.infraestructura.persistencia.repositorio_mongo_rol import \
+    RepositorioMongoRol
 from src.infraestructura.persistencia.repositorio_mongo_sesion import \
     RepositorioMongoSesion
 from src.infraestructura.persistencia.repositorio_mongo_solicitud import \
@@ -182,3 +190,40 @@ def obtener_caso_uso_asignar_consultor(
     repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
 ) -> AsignarConsultor:
     return AsignarConsultor(repo_usuario, repo_empresa)
+
+
+def obtener_repositorio_rol(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoRol:
+    return RepositorioMongoRol(db)
+
+
+def obtener_repositorio_permiso(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoPermiso:
+    return RepositorioMongoPermiso(db)
+
+
+def obtener_caso_uso_listar_roles(
+    repo: RepositorioMongoRol = Depends(obtener_repositorio_rol),
+) -> ListarRoles:
+    return ListarRoles(repo)
+
+
+def obtener_caso_uso_listar_permisos(
+    repo: RepositorioMongoPermiso = Depends(obtener_repositorio_permiso),
+) -> ListarPermisos:
+    return ListarPermisos(repo)
+
+
+def obtener_caso_uso_agregar_permiso(
+    repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
+    repo_permiso: RepositorioMongoPermiso = Depends(obtener_repositorio_permiso),
+) -> AgregarPermisoARol:
+    return AgregarPermisoARol(repo_rol, repo_permiso)
+
+
+def obtener_caso_uso_quitar_permiso(
+    repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
+) -> QuitarPermisoDeRol:
+    return QuitarPermisoDeRol(repo_rol)

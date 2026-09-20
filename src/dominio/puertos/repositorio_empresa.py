@@ -18,3 +18,6 @@ class RepositorioEmpresa(ABC):
 
     @abstractmethod
     async def listar_activas(self) -> list[Empresa]: ...
+
+    @abstractmethod
+    async def listar_todas(self) -> list[Empresa]: ...

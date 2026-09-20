@@ -66,3 +66,8 @@ class RepositorioMongoEmpresa(RepositorioEmpresa):
             "activo": empresa.activo,
             "creado_en": empresa.creado_en,
         }
+
+    async def listar_todas(self) -> list[Empresa]:
+        cursor = self._coleccion.find({})
+        documentos = await cursor.to_list(length=None)
+        return [self._a_entidad(doc) for doc in documentos]

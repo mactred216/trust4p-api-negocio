@@ -5,9 +5,9 @@ import pytest
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     AgregarDimension, AgregarNivel, AgregarPregunta, ConsultarModelo,
-    CrearModeloMadurez, EditarDimension, EditarNivel, EditarPregunta,
-    ListarModelos, ModeloNoEncontrado, QuitarDimension, QuitarNivel,
-    QuitarPregunta, VersionDuplicada)
+    CrearModeloMadurez, CrearNuevaVersion, EditarDimension, EditarNivel,
+    EditarPregunta, ListarModelos, ModeloNoEncontrado, ObtenerVersionVigente,
+    Publicar, QuitarDimension, QuitarNivel, QuitarPregunta, VersionDuplicada)
 from src.dominio.entidades.modelo_madurez import (Dimension, ModeloMadurez,
                                                   Nivel, Pregunta)
 
@@ -20,6 +20,32 @@ def crear_modelo_con_dimension() -> ModeloMadurez:
     modelo = crear_modelo_prueba()
     modelo.agregar_dimension(
         Dimension(codigo="innovacion", nombre="Innovación", peso=Decimal("1"), orden=1)
+    )
+    return modelo
+
+
+def crear_modelo_publicable() -> ModeloMadurez:
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(
+        Pregunta(
+            codigo="p1",
+            dimension_codigo="innovacion",
+            enunciado="¿Invierte en I+D?",
+            tipo="escala",
+            obligatoria=True,
+            peso=Decimal("1"),
+            en_demo=False,
+            orden=1,
+        )
+    )
+    modelo.agregar_nivel(
+        Nivel(
+            nivel=1,
+            nombre="Único",
+            descripcion="Nivel único",
+            umbral_min=Decimal("1"),
+            umbral_max=Decimal("10"),
+        )
     )
     return modelo
 
@@ -314,3 +340,125 @@ async def test_quitar_nivel():
 
     assert resultado.niveles == []
     repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_publicar_modelo_completo():
+    modelo = crear_modelo_publicable()
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = modelo
+
+    caso_uso = Publicar(repo)
+    resultado = await caso_uso.ejecutar("modelo-1", "admin-1")
+
+    assert resultado.publicado is True
+    assert resultado.publicado_por == "admin-1"
+    repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_publicar_modelo_incompleto_falla():
+    modelo = crear_modelo_con_dimension()  # sin preguntas ni niveles
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = modelo
+
+    caso_uso = Publicar(repo)
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("modelo-1", "admin-1")
+    repo.actualizar.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_publicar_modelo_inexistente_falla():
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = None
+
+    caso_uso = Publicar(repo)
+    with pytest.raises(ModeloNoEncontrado):
+        await caso_uso.ejecutar("no-existe", "admin-1")
+
+
+@pytest.mark.asyncio
+async def test_obtener_version_vigente():
+    repo = AsyncMock()
+    repo.obtener_vigente.return_value = crear_modelo_publicable()
+
+    caso_uso = ObtenerVersionVigente(repo)
+    modelo = await caso_uso.ejecutar()
+
+    assert modelo.id == "modelo-1"
+
+
+@pytest.mark.asyncio
+async def test_obtener_version_vigente_sin_ninguna_publicada_falla():
+    repo = AsyncMock()
+    repo.obtener_vigente.return_value = None
+
+    caso_uso = ObtenerVersionVigente(repo)
+    with pytest.raises(ModeloNoEncontrado):
+        await caso_uso.ejecutar()
+
+
+@pytest.mark.asyncio
+async def test_crear_nueva_version_clona_configuracion():
+    origen = crear_modelo_publicable()
+    origen.publicar("admin-1")
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = origen
+    repo.obtener_por_version.return_value = None
+    repo.guardar.side_effect = lambda m: m
+
+    caso_uso = CrearNuevaVersion(repo)
+    clon = await caso_uso.ejecutar("modelo-1")
+
+    assert clon.version == "v2"
+    assert clon.publicado is False
+    assert clon.id is None
+    assert len(clon.dimensiones) == 1
+    assert len(clon.preguntas) == 1
+    assert len(clon.niveles) == 1
+    # el clon es independiente: modificarlo no debe afectar al origen
+    clon.dimensiones[0].peso = Decimal("0.5")
+    assert origen.dimensiones[0].peso == Decimal("1")
+
+
+@pytest.mark.asyncio
+async def test_crear_nueva_version_evita_colision_de_version():
+    origen = crear_modelo_publicable()
+    origen.publicar("admin-1")
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = origen
+    # "v2" ya existe (p.ej. una versión creada y luego descartada); debe saltar a "v3"
+    repo.obtener_por_version.side_effect = lambda v: object() if v == "v2" else None
+    repo.guardar.side_effect = lambda m: m
+
+    caso_uso = CrearNuevaVersion(repo)
+    clon = await caso_uso.ejecutar("modelo-1")
+
+    assert clon.version == "v3"
+
+
+@pytest.mark.asyncio
+async def test_crear_nueva_version_de_modelo_inexistente_falla():
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = None
+
+    caso_uso = CrearNuevaVersion(repo)
+    with pytest.raises(ModeloNoEncontrado):
+        await caso_uso.ejecutar("no-existe")
+
+
+@pytest.mark.asyncio
+async def test_crear_nueva_version_sin_digito_final_agrega_sufijo():
+    origen = crear_modelo_publicable()
+    origen.version = "piloto"
+    origen.publicar("admin-1")
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = origen
+    repo.obtener_por_version.return_value = None
+    repo.guardar.side_effect = lambda m: m
+
+    caso_uso = CrearNuevaVersion(repo)
+    clon = await caso_uso.ejecutar("modelo-1")
+
+    assert clon.version == "piloto-2"

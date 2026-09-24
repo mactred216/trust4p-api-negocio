@@ -246,8 +246,9 @@ def obtener_caso_uso_consultar_auditoria(
 
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
-    AgregarDimension, ConsultarModelo, CrearModeloMadurez, EditarDimension,
-    ListarModelos, QuitarDimension)
+    AgregarDimension, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
+    EditarDimension, EditarPregunta, ListarModelos, QuitarDimension,
+    QuitarPregunta)
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
     RepositorioMongoModeloMadurez
 
@@ -292,3 +293,21 @@ def obtener_caso_uso_quitar_dimension(
     repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
 ) -> QuitarDimension:
     return QuitarDimension(repo)
+
+
+def obtener_caso_uso_agregar_pregunta(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> AgregarPregunta:
+    return AgregarPregunta(repo)
+
+
+def obtener_caso_uso_editar_pregunta(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> EditarPregunta:
+    return EditarPregunta(repo)
+
+
+def obtener_caso_uso_quitar_pregunta(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> QuitarPregunta:
+    return QuitarPregunta(repo)

@@ -5,7 +5,9 @@ from bson import Decimal128, ObjectId
 from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from src.dominio.entidades.modelo_madurez import Dimension, ModeloMadurez
+from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
+                                                  Dimension, ModeloMadurez,
+                                                  OpcionPregunta, Pregunta)
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
 
@@ -72,7 +74,33 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                 for d in doc.get("dimensiones", [])
             ],
             niveles=doc.get("niveles", []),
-            preguntas=doc.get("preguntas", []),
+            preguntas=[
+                Pregunta(
+                    codigo=p["codigo"],
+                    dimension_codigo=p["dimension_codigo"],
+                    enunciado=p["enunciado"],
+                    tipo=p["tipo"],
+                    obligatoria=p["obligatoria"],
+                    peso=self._decimal(p["peso"]),
+                    en_demo=p["en_demo"],
+                    orden=p["orden"],
+                    ayuda=p.get("ayuda"),
+                    opciones=[
+                        OpcionPregunta(
+                            codigo=o["codigo"],
+                            etiqueta=o["etiqueta"],
+                            valor=self._decimal(o["valor"]),
+                        )
+                        for o in p.get("opciones", [])
+                    ],
+                    condicion=(
+                        CondicionActivacion(**p["condicion"])
+                        if p.get("condicion")
+                        else None
+                    ),
+                )
+                for p in doc.get("preguntas", [])
+            ],
             creado_en=doc["creado_en"],
         )
 
@@ -97,7 +125,37 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                 for d in modelo.dimensiones
             ],
             "niveles": modelo.niveles,
-            "preguntas": modelo.preguntas,
+            "preguntas": [
+                {
+                    "codigo": p.codigo,
+                    "dimension_codigo": p.dimension_codigo,
+                    "enunciado": p.enunciado,
+                    "ayuda": p.ayuda,
+                    "tipo": p.tipo,
+                    "obligatoria": p.obligatoria,
+                    "peso": Decimal128(p.peso),
+                    "en_demo": p.en_demo,
+                    "orden": p.orden,
+                    "opciones": [
+                        {
+                            "codigo": o.codigo,
+                            "etiqueta": o.etiqueta,
+                            "valor": Decimal128(o.valor),
+                        }
+                        for o in p.opciones
+                    ],
+                    "condicion": (
+                        {
+                            "pregunta_codigo": p.condicion.pregunta_codigo,
+                            "operador": p.condicion.operador,
+                            "valor": p.condicion.valor,
+                        }
+                        if p.condicion
+                        else None
+                    ),
+                }
+                for p in modelo.preguntas
+            ],
             "creado_en": modelo.creado_en,
         }
 

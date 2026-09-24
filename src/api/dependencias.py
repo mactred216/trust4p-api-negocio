@@ -243,3 +243,52 @@ def obtener_caso_uso_consultar_auditoria(
     repo: RepositorioMongoAuditoria = Depends(obtener_repositorio_auditoria),
 ) -> ConsultarAuditoria:
     return ConsultarAuditoria(repo)
+
+
+from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
+    AgregarDimension, ConsultarModelo, CrearModeloMadurez, EditarDimension,
+    ListarModelos, QuitarDimension)
+from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
+    RepositorioMongoModeloMadurez
+
+
+def obtener_repositorio_modelo_madurez(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoModeloMadurez:
+    return RepositorioMongoModeloMadurez(db)
+
+
+def obtener_caso_uso_crear_modelo_madurez(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> CrearModeloMadurez:
+    return CrearModeloMadurez(repo)
+
+
+def obtener_caso_uso_listar_modelos(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> ListarModelos:
+    return ListarModelos(repo)
+
+
+def obtener_caso_uso_consultar_modelo(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> ConsultarModelo:
+    return ConsultarModelo(repo)
+
+
+def obtener_caso_uso_agregar_dimension(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> AgregarDimension:
+    return AgregarDimension(repo)
+
+
+def obtener_caso_uso_editar_dimension(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> EditarDimension:
+    return EditarDimension(repo)
+
+
+def obtener_caso_uso_quitar_dimension(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> QuitarDimension:
+    return QuitarDimension(repo)

@@ -25,11 +25,16 @@ async def test_solicitar_restablecimiento_con_correo_existente_crea_token():
     repo_usuario = AsyncMock()
     repo_usuario.obtener_por_correo.return_value = crear_usuario_prueba()
     repo_token = AsyncMock()
+    servicio_correo = AsyncMock()
 
-    caso_uso = SolicitarRestablecimiento(repo_usuario, repo_token)
+    caso_uso = SolicitarRestablecimiento(repo_usuario, repo_token, servicio_correo)
     await caso_uso.ejecutar("ana@innovatech.com")
 
     repo_token.guardar.assert_called_once()
+    servicio_correo.enviar.assert_called_once()
+    assert (
+        servicio_correo.enviar.call_args.kwargs["destinatario"] == "ana@innovatech.com"
+    )
 
 
 @pytest.mark.asyncio
@@ -37,11 +42,13 @@ async def test_solicitar_restablecimiento_con_correo_inexistente_no_falla():
     repo_usuario = AsyncMock()
     repo_usuario.obtener_por_correo.return_value = None
     repo_token = AsyncMock()
+    servicio_correo = AsyncMock()
 
-    caso_uso = SolicitarRestablecimiento(repo_usuario, repo_token)
+    caso_uso = SolicitarRestablecimiento(repo_usuario, repo_token, servicio_correo)
     await caso_uso.ejecutar("noexiste@correo.com")  # no debe lanzar excepción
 
     repo_token.guardar.assert_not_called()
+    servicio_correo.enviar.assert_not_called()
 
 
 @pytest.mark.asyncio

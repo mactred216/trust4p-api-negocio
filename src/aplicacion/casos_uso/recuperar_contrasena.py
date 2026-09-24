@@ -5,6 +5,7 @@ from src.dominio.entidades.token_verificacion import (TipoToken,
 from src.dominio.puertos.repositorio_sesion import RepositorioSesion
 from src.dominio.puertos.repositorio_token import RepositorioToken
 from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
+from src.dominio.puertos.servicio_correo import ServicioCorreo
 
 
 class TokenInvalido(Exception):
@@ -14,9 +15,15 @@ class TokenInvalido(Exception):
 class SolicitarRestablecimiento:
     """RF-05. Por seguridad, no revela si el correo existe o no (RNF de enumeración de usuarios)."""
 
-    def __init__(self, repo_usuario: RepositorioUsuario, repo_token: RepositorioToken):
+    def __init__(
+        self,
+        repo_usuario: RepositorioUsuario,
+        repo_token: RepositorioToken,
+        servicio_correo: ServicioCorreo,
+    ):
         self._usuarios = repo_usuario
         self._tokens = repo_token
+        self._correo = servicio_correo
 
     async def ejecutar(self, correo: str) -> None:
         usuario = await self._usuarios.obtener_por_correo(correo)
@@ -32,8 +39,15 @@ class SolicitarRestablecimiento:
         )
         await self._tokens.guardar(token, codigo)
 
-        # Envío de correo pendiente de implementación (queda para más adelante)
-        print(f"CÓDIGO DE RESTABLECIMIENTO (temporal, solo para pruebas): {codigo}")
+        await self._correo.enviar(
+            destinatario=usuario.correo,
+            asunto="Trust 4P - Código para restablecer tu contraseña",
+            cuerpo=(
+                f"Hola {usuario.nombres},\n\n"
+                f"Usa el siguiente código para restablecer tu contraseña: {codigo}\n\n"
+                "Si no solicitaste este cambio, puedes ignorar este mensaje."
+            ),
+        )
 
 
 class RestablecerContrasena:

@@ -29,8 +29,11 @@ async def test_aprobar_solicitud_crea_empresa_y_token():
     )
     repo_token = AsyncMock()
     repo_token.guardar.side_effect = lambda t, c: t
+    servicio_correo = AsyncMock()
 
-    caso_uso = ResolverSolicitud(repo_solicitud, repo_empresa, repo_token)
+    caso_uso = ResolverSolicitud(
+        repo_solicitud, repo_empresa, repo_token, servicio_correo
+    )
     sector = Sector(id="1", codigo="J62", nombre="Software")
     empresa, codigo = await caso_uso.aprobar("sol-1", sector)
 
@@ -39,6 +42,10 @@ async def test_aprobar_solicitud_crea_empresa_y_token():
     assert len(codigo) > 0
     repo_solicitud.actualizar.assert_called_once()
     repo_token.guardar.assert_called_once()
+    servicio_correo.enviar.assert_called_once()
+    assert (
+        servicio_correo.enviar.call_args.kwargs["destinatario"] == "ana@innovatech.com"
+    )
 
 
 @pytest.mark.asyncio
@@ -47,8 +54,11 @@ async def test_aprobar_solicitud_inexistente_lanza_excepcion():
     repo_solicitud.obtener_por_id.return_value = None
     repo_empresa = AsyncMock()
     repo_token = AsyncMock()
+    servicio_correo = AsyncMock()
 
-    caso_uso = ResolverSolicitud(repo_solicitud, repo_empresa, repo_token)
+    caso_uso = ResolverSolicitud(
+        repo_solicitud, repo_empresa, repo_token, servicio_correo
+    )
 
     with pytest.raises(SolicitudNoEncontrada):
         await caso_uso.aprobar(
@@ -63,9 +73,13 @@ async def test_rechazar_solicitud_con_motivo():
     repo_solicitud.obtener_por_id.return_value = solicitud
     repo_empresa = AsyncMock()
     repo_token = AsyncMock()
+    servicio_correo = AsyncMock()
 
-    caso_uso = ResolverSolicitud(repo_solicitud, repo_empresa, repo_token)
+    caso_uso = ResolverSolicitud(
+        repo_solicitud, repo_empresa, repo_token, servicio_correo
+    )
     await caso_uso.rechazar("sol-1", motivo="No cumple criterio de tamaño")
 
     repo_empresa.guardar.assert_not_called()
     repo_solicitud.actualizar.assert_called_once()
+    servicio_correo.enviar.assert_not_called()

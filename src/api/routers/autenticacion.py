@@ -16,7 +16,7 @@ router = APIRouter(prefix="/auth", tags=["autenticacion"])
 from src.api.dependencias import (obtener_caso_uso_restablecer_contrasena,
                                   obtener_caso_uso_solicitar_restablecimiento)
 from src.aplicacion.casos_uso.recuperar_contrasena import (
-    RestablecerContrasena, SolicitarRestablecimiento)
+    ClaveReutilizada, RestablecerContrasena, SolicitarRestablecimiento)
 from src.aplicacion.casos_uso.recuperar_contrasena import \
     TokenInvalido as TokenRestablecimientoInvalido
 
@@ -189,6 +189,11 @@ async def restablecer_contrasena(
     except TokenRestablecimientoInvalido:
         raise HTTPException(
             status_code=401, detail="Token inválido, expirado o ya utilizado"
+        )
+    except ClaveReutilizada:
+        raise HTTPException(
+            status_code=400,
+            detail="No puede reutilizar una de sus últimas 5 contraseñas",
         )
 
     return MensajeResponse(mensaje="Contraseña actualizada correctamente")

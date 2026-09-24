@@ -31,3 +31,25 @@ def test_usuario_con_menos_de_cinco_intentos_puede_acceder():
     usuario.registrar_intento_fallido()
     usuario.registrar_intento_fallido()
     assert usuario.puede_intentar_acceso() is True
+
+
+# RF-48: historial de las últimas 5 contraseñas
+def test_registrar_clave_mueve_la_actual_al_historial():
+    usuario = crear_usuario_prueba()
+    usuario.registrar_clave("hash-nuevo")
+    assert usuario.clave_hash == "hash-nuevo"
+    assert usuario.historial_claves == ["hash"]
+
+
+def test_hashes_recientes_incluye_actual_y_pasadas():
+    usuario = crear_usuario_prueba()
+    usuario.registrar_clave("hash-2")
+    usuario.registrar_clave("hash-3")
+    assert usuario.hashes_recientes() == ["hash-3", "hash-2", "hash"]
+
+
+def test_historial_de_claves_no_excede_el_maximo():
+    usuario = crear_usuario_prueba()
+    for i in range(10):
+        usuario.registrar_clave(f"hash-{i}")
+    assert len(usuario.hashes_recientes()) == Usuario.HISTORIAL_CLAVES_MAXIMO

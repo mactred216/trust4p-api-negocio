@@ -1,19 +1,25 @@
 from unittest.mock import AsyncMock
 
+import bcrypt
 import pytest
 
 from src.aplicacion.casos_uso.recuperar_contrasena import (
-    RestablecerContrasena, SolicitarRestablecimiento, TokenInvalido)
+    ClaveReutilizada, RestablecerContrasena, SolicitarRestablecimiento,
+    TokenInvalido)
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
 from src.dominio.entidades.usuario import Rol, Usuario
 
 
-def crear_usuario_prueba():
+def _hash(clave: str) -> str:
+    return bcrypt.hashpw(clave.encode(), bcrypt.gensalt()).decode()
+
+
+def crear_usuario_prueba(clave_actual: str = "ClaveAnteriorSegura123"):
     return Usuario(
         id="user-1",
         correo="ana@innovatech.com",
-        clave_hash="hash-viejo",
+        clave_hash=_hash(clave_actual),
         nombres="Ana",
         apellidos="Pérez",
         rol=Rol(codigo="representante"),
@@ -103,3 +109,48 @@ async def test_restablecer_con_token_de_tipo_incorrecto_falla():
 
     with pytest.raises(TokenInvalido):
         await caso_uso.ejecutar("codigo-de-invitacion", "NuevaClaveSegura123")
+
+
+# RF-48: no se puede reutilizar una de las últimas 5 contraseñas
+@pytest.mark.asyncio
+async def test_restablecer_con_clave_igual_a_la_actual_falla():
+    usuario = crear_usuario_prueba(clave_actual="NuevaClaveSegura123")
+    token = TokenVerificacion(
+        id="tok-1",
+        tipo=TipoToken.RESTABLECER_CLAVE,
+        correo_destino="ana@innovatech.com",
+        usuario_id="user-1",
+    )
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_correo.return_value = usuario
+    repo_token = AsyncMock()
+    repo_token.obtener_por_codigo.return_value = token
+    repo_sesion = AsyncMock()
+
+    caso_uso = RestablecerContrasena(repo_usuario, repo_token, repo_sesion)
+
+    with pytest.raises(ClaveReutilizada):
+        await caso_uso.ejecutar("codigo-valido", "NuevaClaveSegura123")
+    repo_usuario.actualizar.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_restablecer_con_clave_del_historial_falla():
+    usuario = crear_usuario_prueba(clave_actual="ClaveActualSegura123")
+    usuario.historial_claves = [_hash("ClaveViejaSegura123")]
+    token = TokenVerificacion(
+        id="tok-1",
+        tipo=TipoToken.RESTABLECER_CLAVE,
+        correo_destino="ana@innovatech.com",
+        usuario_id="user-1",
+    )
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_correo.return_value = usuario
+    repo_token = AsyncMock()
+    repo_token.obtener_por_codigo.return_value = token
+    repo_sesion = AsyncMock()
+
+    caso_uso = RestablecerContrasena(repo_usuario, repo_token, repo_sesion)
+
+    with pytest.raises(ClaveReutilizada):
+        await caso_uso.ejecutar("codigo-valido", "ClaveViejaSegura123")

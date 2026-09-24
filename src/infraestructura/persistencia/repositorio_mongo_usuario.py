@@ -77,6 +77,7 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             bloqueado_hasta=doc.get("bloqueado_hasta"),
             activo=doc.get("activo", True),
             asignaciones=asignaciones,
+            historial_claves=doc.get("historial_claves", []),
         )
 
     def _a_documento(self, usuario: Usuario) -> dict:
@@ -90,6 +91,7 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             "intentos_fallidos": usuario.intentos_fallidos,
             "bloqueado_hasta": usuario.bloqueado_hasta,
             "activo": usuario.activo,
+            "historial_claves": usuario.historial_claves,
             "asignaciones": [
                 {
                     "empresa_id": a.empresa_id,

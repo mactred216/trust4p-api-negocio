@@ -1,10 +1,12 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
 
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
                                                   Dimension, ModeloMadurez,
-                                                  OpcionPregunta, Pregunta)
+                                                  Nivel, OpcionPregunta,
+                                                  Pregunta)
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
     RepositorioMongoModeloMadurez
 
@@ -19,6 +21,22 @@ def crear_modelo_prueba() -> ModeloMadurez:
                 codigo="innovacion", nombre="Innovación", peso=Decimal("0.5"), orden=1
             ),
             Dimension(codigo="cultura", nombre="Cultura", peso=Decimal("0.5"), orden=2),
+        ],
+        niveles=[
+            Nivel(
+                nivel=1,
+                nombre="Inicial",
+                descripcion="Sin proceso formal",
+                umbral_min=Decimal("1"),
+                umbral_max=Decimal("5.5"),
+            ),
+            Nivel(
+                nivel=2,
+                nombre="Avanzado",
+                descripcion="Proceso establecido",
+                umbral_min=Decimal("5.5"),
+                umbral_max=Decimal("10"),
+            ),
         ],
         preguntas=[
             Pregunta(
@@ -65,6 +83,8 @@ async def test_guardar_y_obtener_por_id_conserva_precision_decimal(db):
     assert recuperado.dimensiones[0].peso == Decimal("0.5")
     assert recuperado.preguntas[0].opciones[0].valor == Decimal("3")
     assert recuperado.preguntas[1].condicion.pregunta_codigo == "p1"
+    assert len(recuperado.niveles) == 2
+    assert recuperado.niveles[0].umbral_max == Decimal("5.5")
 
 
 @pytest.mark.asyncio
@@ -120,3 +140,41 @@ async def test_obtener_por_id_inexistente_pero_valido_devuelve_none(db):
     repo = RepositorioMongoModeloMadurez(db)
 
     assert await repo.obtener_por_id("64b64b64b64b64b64b64b64b") is None
+
+
+@pytest.mark.asyncio
+async def test_obtener_vigente_devuelve_la_publicada_mas_reciente(db):
+    """HU-034: obtener_vigente usa find_one(..., sort=...) — no probado antes
+    de esta prueba contra Mongo real, solo contra mocks."""
+    repo = RepositorioMongoModeloMadurez(db)
+
+    antigua = crear_modelo_prueba()
+    antigua.version = "v-vigente-1"
+    antigua.publicar("admin-1")
+    antigua.publicado_en = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    await repo.guardar(antigua)
+
+    reciente = crear_modelo_prueba()
+    reciente.version = "v-vigente-2"
+    reciente.publicar("admin-1")
+    reciente.publicado_en = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    await repo.guardar(reciente)
+
+    borrador = crear_modelo_prueba()
+    borrador.version = "v-vigente-3-borrador"
+    await repo.guardar(borrador)
+
+    vigente = await repo.obtener_vigente()
+
+    assert vigente is not None
+    assert vigente.version == "v-vigente-2"
+    assert vigente.publicado is True
+
+
+@pytest.mark.asyncio
+async def test_obtener_vigente_sin_ninguna_publicada_devuelve_none(db):
+    repo = RepositorioMongoModeloMadurez(db)
+    borrador = crear_modelo_prueba()
+    await repo.guardar(borrador)
+
+    assert await repo.obtener_vigente() is None

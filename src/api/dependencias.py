@@ -196,6 +196,39 @@ def obtener_caso_uso_desbloquear_usuario(
     return DesbloquearUsuario(repo)
 
 
+from src.aplicacion.casos_uso.gestionar_perfil import (ActualizarPerfil,
+                                                       CambiarContrasena,
+                                                       CerrarSesion,
+                                                       EliminarDatosPersonales)
+
+
+def obtener_caso_uso_cerrar_sesion(
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+) -> CerrarSesion:
+    return CerrarSesion(repo_sesion)
+
+
+def obtener_caso_uso_actualizar_perfil(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> ActualizarPerfil:
+    return ActualizarPerfil(repo_usuario)
+
+
+def obtener_caso_uso_cambiar_contrasena(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+) -> CambiarContrasena:
+    return CambiarContrasena(repo_usuario, repo_sesion)
+
+
+def obtener_caso_uso_eliminar_datos_personales(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+) -> EliminarDatosPersonales:
+    return EliminarDatosPersonales(repo_usuario, repo_sesion, servicio_correo)
+
+
 def obtener_caso_uso_asignar_consultor(
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
     repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),

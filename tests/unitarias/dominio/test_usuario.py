@@ -1,3 +1,5 @@
+import pytest
+
 from src.dominio.entidades.usuario import Rol, Usuario
 
 
@@ -53,3 +55,47 @@ def test_historial_de_claves_no_excede_el_maximo():
     for i in range(10):
         usuario.registrar_clave(f"hash-{i}")
     assert len(usuario.hashes_recientes()) == Usuario.HISTORIAL_CLAVES_MAXIMO
+
+
+# HU-006: gestión de perfil (RF-06)
+def test_actualizar_perfil_actualiza_solo_campos_enviados():
+    usuario = crear_usuario_prueba()
+    usuario.actualizar_perfil(cargo="Gerente de innovación")
+    assert usuario.cargo == "Gerente de innovación"
+    assert usuario.nombres == "Test"  # no se tocó
+    assert usuario.telefono is None
+
+
+def test_actualizar_perfil_actualiza_varios_campos():
+    usuario = crear_usuario_prueba()
+    usuario.actualizar_perfil(
+        nombres="Nuevo", apellidos="Apellido", cargo="CTO", telefono="3001234567"
+    )
+    assert usuario.nombres == "Nuevo"
+    assert usuario.apellidos == "Apellido"
+    assert usuario.cargo == "CTO"
+    assert usuario.telefono == "3001234567"
+
+
+# RF-44: eliminación de datos personales
+def test_anonimizar_elimina_datos_identificables_y_desactiva():
+    usuario = crear_usuario_prueba()
+    usuario.cargo = "CTO"
+    usuario.telefono = "3001234567"
+
+    usuario.anonimizar()
+
+    assert usuario.activo is False
+    assert usuario.correo != "test@trust4p.com"
+    assert "anonimo" in usuario.correo
+    assert usuario.nombres != "Test"
+    assert usuario.cargo is None
+    assert usuario.telefono is None
+
+
+def test_anonimizar_cuenta_ya_inactiva_falla():
+    usuario = crear_usuario_prueba()
+    usuario.desactivar()
+
+    with pytest.raises(ValueError):
+        usuario.anonimizar()

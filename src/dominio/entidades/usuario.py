@@ -33,6 +33,8 @@ class Usuario:
     activo: bool = True
     asignaciones: list[Asignacion] = field(default_factory=list)
     historial_claves: list[str] = field(default_factory=list)
+    cargo: Optional[str] = None
+    telefono: Optional[str] = None
 
     HISTORIAL_CLAVES_MAXIMO = 5
 
@@ -70,6 +72,34 @@ class Usuario:
         if not self.activo:
             raise ValueError("El usuario ya se encuentra inactivo")
         self.activo = False
+
+    def actualizar_perfil(
+        self,
+        nombres: Optional[str] = None,
+        apellidos: Optional[str] = None,
+        cargo: Optional[str] = None,
+        telefono: Optional[str] = None,
+    ) -> None:
+        """RF-06: el propio usuario edita sus datos de perfil."""
+        if nombres is not None:
+            self.nombres = nombres
+        if apellidos is not None:
+            self.apellidos = apellidos
+        if cargo is not None:
+            self.cargo = cargo
+        if telefono is not None:
+            self.telefono = telefono
+
+    def anonimizar(self) -> None:
+        """RF-44: elimina los datos personales identificables y desactiva la
+        cuenta. Los resultados numéricos de diagnósticos (fuera del alcance
+        de esta entidad) se conservan agregados y anonimizados aparte."""
+        self.desactivar()
+        self.correo = f"eliminado+{self.id}@anonimo.trust4p.local"
+        self.nombres = "Usuario"
+        self.apellidos = "eliminado"
+        self.cargo = None
+        self.telefono = None
 
     def reactivar(self) -> None:
         if self.activo:

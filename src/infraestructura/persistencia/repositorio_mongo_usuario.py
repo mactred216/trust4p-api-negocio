@@ -78,6 +78,8 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             activo=doc.get("activo", True),
             asignaciones=asignaciones,
             historial_claves=doc.get("historial_claves", []),
+            cargo=doc.get("cargo"),
+            telefono=doc.get("telefono"),
         )
 
     def _a_documento(self, usuario: Usuario) -> dict:
@@ -92,6 +94,8 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             "bloqueado_hasta": usuario.bloqueado_hasta,
             "activo": usuario.activo,
             "historial_claves": usuario.historial_claves,
+            "cargo": usuario.cargo,
+            "telefono": usuario.telefono,
             "asignaciones": [
                 {
                     "empresa_id": a.empresa_id,

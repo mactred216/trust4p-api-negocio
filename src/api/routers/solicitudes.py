@@ -117,8 +117,7 @@ async def aprobar_solicitud(
         id=datos.sector_id, codigo=datos.sector_codigo, nombre=datos.sector_nombre
     )
     try:
-        empresa, codigo = await caso_uso.aprobar(solicitud_id, sector)
-        print(f"CÓDIGO DE INVITACIÓN (temporal, solo para pruebas): {codigo}")
+        empresa, _codigo = await caso_uso.aprobar(solicitud_id, sector)
     except SolicitudNoEncontrada:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 

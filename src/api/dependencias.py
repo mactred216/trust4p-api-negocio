@@ -16,6 +16,7 @@ from src.aplicacion.casos_uso.iniciar_sesion import IniciarSesion
 from src.aplicacion.casos_uso.radicar_solicitud import RadicarSolicitud
 from src.aplicacion.casos_uso.resolver_solicitud import ResolverSolicitud
 from src.dominio.puertos.repositorio_token import RepositorioToken
+from src.infraestructura.clientes.cliente_correo_smtp import ClienteCorreoSMTP
 from src.infraestructura.persistencia.conexion import obtener_base_datos
 from src.infraestructura.persistencia.repositorio_mongo_empresa import \
     RepositorioMongoEmpresa
@@ -45,6 +46,10 @@ def obtener_caso_uso_radicar_solicitud(
     return RadicarSolicitud(repo)
 
 
+def obtener_servicio_correo() -> ClienteCorreoSMTP:
+    return ClienteCorreoSMTP()
+
+
 def obtener_repositorio_usuario(
     db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
 ) -> RepositorioMongoUsuario:
@@ -68,13 +73,6 @@ def obtener_repositorio_empresa(
     db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
 ) -> RepositorioMongoEmpresa:
     return RepositorioMongoEmpresa(db)
-
-
-def obtener_caso_uso_resolver_solicitud(
-    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
-    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
-) -> ResolverSolicitud:
-    return ResolverSolicitud(repo_solicitud, repo_empresa)
 
 
 from src.aplicacion.casos_uso.consultar_auditoria import ConsultarAuditoria
@@ -128,8 +126,9 @@ def obtener_caso_uso_resolver_solicitud(
     repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
     repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
     repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
 ) -> ResolverSolicitud:
-    return ResolverSolicitud(repo_solicitud, repo_empresa, repo_token)
+    return ResolverSolicitud(repo_solicitud, repo_empresa, repo_token, servicio_correo)
 
 
 def obtener_caso_uso_completar_registro(
@@ -147,8 +146,9 @@ from src.aplicacion.casos_uso.recuperar_contrasena import (
 def obtener_caso_uso_solicitar_restablecimiento(
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
     repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
 ) -> SolicitarRestablecimiento:
-    return SolicitarRestablecimiento(repo_usuario, repo_token)
+    return SolicitarRestablecimiento(repo_usuario, repo_token, servicio_correo)
 
 
 def obtener_caso_uso_restablecer_contrasena(

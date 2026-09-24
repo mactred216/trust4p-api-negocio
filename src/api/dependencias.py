@@ -9,6 +9,7 @@ from src.aplicacion.casos_uso.gestionar_roles import (AgregarPermisoARol,
                                                       QuitarPermisoDeRol)
 from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
                                                          DesactivarUsuario,
+                                                         DesbloquearUsuario,
                                                          EditarUsuario,
                                                          ListarUsuarios,
                                                          ReactivarUsuario)
@@ -189,6 +190,12 @@ def obtener_caso_uso_reactivar_usuario(
     return ReactivarUsuario(repo)
 
 
+def obtener_caso_uso_desbloquear_usuario(
+    repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> DesbloquearUsuario:
+    return DesbloquearUsuario(repo)
+
+
 def obtener_caso_uso_asignar_consultor(
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
     repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
@@ -223,14 +230,18 @@ def obtener_caso_uso_listar_permisos(
 def obtener_caso_uso_agregar_permiso(
     repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
     repo_permiso: RepositorioMongoPermiso = Depends(obtener_repositorio_permiso),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
 ) -> AgregarPermisoARol:
-    return AgregarPermisoARol(repo_rol, repo_permiso)
+    return AgregarPermisoARol(repo_rol, repo_permiso, repo_usuario, repo_sesion)
 
 
 def obtener_caso_uso_quitar_permiso(
     repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
 ) -> QuitarPermisoDeRol:
-    return QuitarPermisoDeRol(repo_rol)
+    return QuitarPermisoDeRol(repo_rol, repo_usuario, repo_sesion)
 
 
 def obtener_repositorio_auditoria(
@@ -246,8 +257,9 @@ def obtener_caso_uso_consultar_auditoria(
 
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
-    AgregarDimension, ConsultarModelo, CrearModeloMadurez, EditarDimension,
-    ListarModelos, QuitarDimension)
+    AgregarDimension, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
+    EditarDimension, EditarPregunta, ListarModelos, QuitarDimension,
+    QuitarPregunta)
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
     RepositorioMongoModeloMadurez
 
@@ -292,3 +304,21 @@ def obtener_caso_uso_quitar_dimension(
     repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
 ) -> QuitarDimension:
     return QuitarDimension(repo)
+
+
+def obtener_caso_uso_agregar_pregunta(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> AgregarPregunta:
+    return AgregarPregunta(repo)
+
+
+def obtener_caso_uso_editar_pregunta(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> EditarPregunta:
+    return EditarPregunta(repo)
+
+
+def obtener_caso_uso_quitar_pregunta(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> QuitarPregunta:
+    return QuitarPregunta(repo)

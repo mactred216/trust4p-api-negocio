@@ -1,6 +1,7 @@
 from typing import Optional
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.dominio.entidades.usuario import Asignacion, Rol, Usuario
@@ -19,7 +20,11 @@ class RepositorioMongoUsuario(RepositorioUsuario):
         return self._a_entidad(doc)
 
     async def obtener_por_id(self, usuario_id: str) -> Optional[Usuario]:
-        doc = await self._coleccion.find_one({"_id": ObjectId(usuario_id)})
+        try:
+            id_valido = ObjectId(usuario_id)
+        except InvalidId:
+            return None
+        doc = await self._coleccion.find_one({"_id": id_valido})
         if doc is None:
             return None
         return self._a_entidad(doc)
@@ -46,6 +51,11 @@ class RepositorioMongoUsuario(RepositorioUsuario):
         documentos = await cursor.to_list(length=None)
         return [self._a_entidad(doc) for doc in documentos]
 
+    async def listar_por_rol(self, codigo_rol: str) -> list[Usuario]:
+        cursor = self._coleccion.find({"rol.codigo": codigo_rol})
+        documentos = await cursor.to_list(length=None)
+        return [self._a_entidad(doc) for doc in documentos]
+
     def _a_entidad(self, doc: dict) -> Usuario:
         asignaciones = [
             Asignacion(
@@ -67,6 +77,7 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             bloqueado_hasta=doc.get("bloqueado_hasta"),
             activo=doc.get("activo", True),
             asignaciones=asignaciones,
+            historial_claves=doc.get("historial_claves", []),
         )
 
     def _a_documento(self, usuario: Usuario) -> dict:
@@ -80,6 +91,7 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             "intentos_fallidos": usuario.intentos_fallidos,
             "bloqueado_hasta": usuario.bloqueado_hasta,
             "activo": usuario.activo,
+            "historial_claves": usuario.historial_claves,
             "asignaciones": [
                 {
                     "empresa_id": a.empresa_id,

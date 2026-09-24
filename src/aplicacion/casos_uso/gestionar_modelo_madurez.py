@@ -1,7 +1,9 @@
 from decimal import Decimal
 from typing import Optional
 
-from src.dominio.entidades.modelo_madurez import Dimension, ModeloMadurez
+from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
+                                                  Dimension, ModeloMadurez,
+                                                  OpcionPregunta, Pregunta)
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
 
@@ -125,5 +127,97 @@ class QuitarDimension:
             raise ModeloNoEncontrado()
 
         modelo.quitar_dimension(codigo)
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class AgregarPregunta:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(
+        self,
+        modelo_id: str,
+        codigo: str,
+        dimension_codigo: str,
+        enunciado: str,
+        tipo: str,
+        obligatoria: bool,
+        peso: Decimal,
+        en_demo: bool,
+        orden: int,
+        ayuda: Optional[str] = None,
+        opciones: Optional[list[dict]] = None,
+        condicion: Optional[dict] = None,
+    ) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.agregar_pregunta(
+            Pregunta(
+                codigo=codigo,
+                dimension_codigo=dimension_codigo,
+                enunciado=enunciado,
+                tipo=tipo,
+                obligatoria=obligatoria,
+                peso=peso,
+                en_demo=en_demo,
+                orden=orden,
+                ayuda=ayuda,
+                opciones=[OpcionPregunta(**o) for o in (opciones or [])],
+                condicion=CondicionActivacion(**condicion) if condicion else None,
+            )
+        )
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class EditarPregunta:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(
+        self,
+        modelo_id: str,
+        codigo: str,
+        dimension_codigo: Optional[str] = None,
+        enunciado: Optional[str] = None,
+        ayuda: Optional[str] = None,
+        tipo: Optional[str] = None,
+        obligatoria: Optional[bool] = None,
+        peso: Optional[Decimal] = None,
+        en_demo: Optional[bool] = None,
+        orden: Optional[int] = None,
+    ) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.editar_pregunta(
+            codigo,
+            dimension_codigo=dimension_codigo,
+            enunciado=enunciado,
+            ayuda=ayuda,
+            tipo=tipo,
+            obligatoria=obligatoria,
+            peso=peso,
+            en_demo=en_demo,
+            orden=orden,
+        )
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class QuitarPregunta:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(self, modelo_id: str, codigo: str) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.quitar_pregunta(codigo)
         await self._modelos.actualizar(modelo)
         return modelo

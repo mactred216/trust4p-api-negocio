@@ -4,13 +4,23 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
-    AgregarDimension, ConsultarModelo, CrearModeloMadurez, EditarDimension,
-    ListarModelos, ModeloNoEncontrado, QuitarDimension, VersionDuplicada)
-from src.dominio.entidades.modelo_madurez import Dimension, ModeloMadurez
+    AgregarDimension, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
+    EditarDimension, EditarPregunta, ListarModelos, ModeloNoEncontrado,
+    QuitarDimension, QuitarPregunta, VersionDuplicada)
+from src.dominio.entidades.modelo_madurez import (Dimension, ModeloMadurez,
+                                                  Pregunta)
 
 
 def crear_modelo_prueba() -> ModeloMadurez:
     return ModeloMadurez(id="modelo-1", version="v1", nombre="Modelo inicial")
+
+
+def crear_modelo_con_dimension() -> ModeloMadurez:
+    modelo = crear_modelo_prueba()
+    modelo.agregar_dimension(
+        Dimension(codigo="innovacion", nombre="Innovación", peso=Decimal("1"), orden=1)
+    )
+    return modelo
 
 
 @pytest.mark.asyncio
@@ -130,4 +140,96 @@ async def test_quitar_dimension():
     resultado = await caso_uso.ejecutar("modelo-1", "innovacion")
 
     assert resultado.dimensiones == []
+    repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_agregar_pregunta():
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = crear_modelo_con_dimension()
+
+    caso_uso = AgregarPregunta(repo)
+    modelo = await caso_uso.ejecutar(
+        "modelo-1",
+        codigo="p1",
+        dimension_codigo="innovacion",
+        enunciado="¿Invierte en I+D?",
+        tipo="escala",
+        obligatoria=True,
+        peso=Decimal("1"),
+        en_demo=False,
+        orden=1,
+    )
+
+    assert len(modelo.preguntas) == 1
+    repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_agregar_pregunta_a_modelo_inexistente_falla():
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = None
+
+    caso_uso = AgregarPregunta(repo)
+    with pytest.raises(ModeloNoEncontrado):
+        await caso_uso.ejecutar(
+            "no-existe",
+            codigo="p1",
+            dimension_codigo="innovacion",
+            enunciado="¿Invierte en I+D?",
+            tipo="escala",
+            obligatoria=True,
+            peso=Decimal("1"),
+            en_demo=False,
+            orden=1,
+        )
+
+
+@pytest.mark.asyncio
+async def test_editar_pregunta():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(
+        Pregunta(
+            codigo="p1",
+            dimension_codigo="innovacion",
+            enunciado="¿Invierte en I+D?",
+            tipo="escala",
+            obligatoria=True,
+            peso=Decimal("1"),
+            en_demo=False,
+            orden=1,
+        )
+    )
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = modelo
+
+    caso_uso = EditarPregunta(repo)
+    resultado = await caso_uso.ejecutar("modelo-1", "p1", peso=Decimal("0.5"))
+
+    assert resultado.preguntas[0].peso == Decimal("0.5")
+    repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_quitar_pregunta():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(
+        Pregunta(
+            codigo="p1",
+            dimension_codigo="innovacion",
+            enunciado="¿Invierte en I+D?",
+            tipo="escala",
+            obligatoria=True,
+            peso=Decimal("1"),
+            en_demo=False,
+            orden=1,
+        )
+    )
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = modelo
+
+    caso_uso = QuitarPregunta(repo)
+    resultado = await caso_uso.ejecutar("modelo-1", "p1")
+
+    assert resultado.preguntas == []
     repo.actualizar.assert_called_once()

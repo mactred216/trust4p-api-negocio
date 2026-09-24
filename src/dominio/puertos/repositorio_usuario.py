@@ -24,3 +24,6 @@ class RepositorioUsuario(ABC):
 
     @abstractmethod
     async def listar_todos(self) -> list[Usuario]: ...
+
+    @abstractmethod
+    async def listar_por_rol(self, codigo_rol: str) -> list[Usuario]: ...

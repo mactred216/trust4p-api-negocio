@@ -32,6 +32,22 @@ class Usuario:
     bloqueado_hasta: Optional[datetime] = None
     activo: bool = True
     asignaciones: list[Asignacion] = field(default_factory=list)
+    historial_claves: list[str] = field(default_factory=list)
+
+    HISTORIAL_CLAVES_MAXIMO = 5
+
+    def registrar_clave(self, nuevo_hash: str) -> None:
+        """RF-48: conserva un historial de las últimas contraseñas para impedir su reúso."""
+        self.historial_claves.insert(0, self.clave_hash)
+        self.historial_claves = self.historial_claves[
+            : self.HISTORIAL_CLAVES_MAXIMO - 1
+        ]
+        self.clave_hash = nuevo_hash
+
+    def hashes_recientes(self) -> list[str]:
+        """Hash vigente + historial, para validar reúso contra las últimas
+        HISTORIAL_CLAVES_MAXIMO contraseñas."""
+        return [self.clave_hash] + self.historial_claves
 
     def puede_intentar_acceso(self) -> bool:
         if self.bloqueado_hasta is None:

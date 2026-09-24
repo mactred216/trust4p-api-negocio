@@ -1,6 +1,7 @@
 from typing import Optional
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.dominio.entidades.solicitud_acceso import (EstadoSolicitud,
@@ -21,7 +22,11 @@ class RepositorioMongoSolicitud(RepositorioSolicitud):
         return solicitud
 
     async def obtener_por_id(self, solicitud_id: str) -> Optional[SolicitudAcceso]:
-        doc = await self._coleccion.find_one({"_id": ObjectId(solicitud_id)})
+        try:
+            id_valido = ObjectId(solicitud_id)
+        except InvalidId:
+            return None
+        doc = await self._coleccion.find_one({"_id": id_valido})
         if doc is None:
             return None
         return self._a_entidad(doc)

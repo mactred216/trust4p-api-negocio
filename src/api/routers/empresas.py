@@ -11,6 +11,7 @@ from src.api.dependencias import (obtener_caso_uso_consultar_empresa,
                                   obtener_repositorio_auditoria)
 from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
+from src.api.validadores_comunes import texto_opcional_no_vacio
 from src.aplicacion.casos_uso.gestionar_empresas import (ConsultarEmpresa,
                                                          DesactivarEmpresa,
                                                          EditarEmpresa,
@@ -39,12 +40,7 @@ class EditarEmpresaRequest(BaseModel):
     @field_validator("nombre", "nit", "ciudad")
     @classmethod
     def si_viene_no_vacio(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        if not v:
-            raise ValueError("Si se envía este campo, no puede estar vacío")
-        return v
+        return texto_opcional_no_vacio(v)
 
     @field_validator("numero_empleados")
     @classmethod

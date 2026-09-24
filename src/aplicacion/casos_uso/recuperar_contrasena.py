@@ -12,6 +12,12 @@ class TokenInvalido(Exception):
     pass
 
 
+class ClaveReutilizada(Exception):
+    """RF-48: la contraseña coincide con una de las últimas empleadas por el usuario."""
+
+    pass
+
+
 class SolicitarRestablecimiento:
     """RF-05. Por seguridad, no revela si el correo existe o no (RNF de enumeración de usuarios)."""
 
@@ -74,9 +80,14 @@ class RestablecerContrasena:
         if usuario is None:
             raise TokenInvalido()
 
-        usuario.clave_hash = bcrypt.hashpw(
-            clave_nueva.encode(), bcrypt.gensalt()
-        ).decode()
+        if any(
+            bcrypt.checkpw(clave_nueva.encode(), h.encode())
+            for h in usuario.hashes_recientes()
+        ):
+            raise ClaveReutilizada()
+
+        nuevo_hash = bcrypt.hashpw(clave_nueva.encode(), bcrypt.gensalt()).decode()
+        usuario.registrar_clave(nuevo_hash)
         usuario.reiniciar_intentos()
         await self._usuarios.actualizar(usuario)
 

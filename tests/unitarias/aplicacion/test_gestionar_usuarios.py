@@ -1,9 +1,11 @@
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
 import pytest
 
 from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
                                                          DesactivarUsuario,
+                                                         DesbloquearUsuario,
                                                          EditarUsuario,
                                                          ListarUsuarios,
                                                          ReactivarUsuario,
@@ -131,3 +133,44 @@ async def test_no_se_puede_reactivar_usuario_ya_activo():
 
     with pytest.raises(ValueError):
         await caso_uso.ejecutar("user-1")
+
+
+# pendiente #5: desbloqueo manual de cuenta
+@pytest.mark.asyncio
+async def test_desbloquear_usuario_bloqueado():
+    usuario = crear_usuario_prueba()
+    usuario.intentos_fallidos = 5
+    usuario.bloqueado_hasta = datetime.now(timezone.utc) + timedelta(minutes=15)
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = usuario
+
+    caso_uso = DesbloquearUsuario(repo)
+    resultado = await caso_uso.ejecutar("user-1")
+
+    assert resultado.bloqueado_hasta is None
+    assert resultado.intentos_fallidos == 0
+    repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_desbloquear_usuario_no_bloqueado_falla():
+    usuario = crear_usuario_prueba()
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = usuario
+
+    caso_uso = DesbloquearUsuario(repo)
+
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("user-1")
+    repo.actualizar.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_desbloquear_usuario_inexistente_falla():
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = None
+
+    caso_uso = DesbloquearUsuario(repo)
+
+    with pytest.raises(UsuarioNoEncontrado):
+        await caso_uso.ejecutar("no-existe")

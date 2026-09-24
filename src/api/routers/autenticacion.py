@@ -1,10 +1,9 @@
-import re
-
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, EmailStr, field_validator
 
 from src.api.dependencias import (obtener_caso_uso_completar_registro,
                                   obtener_caso_uso_iniciar_sesion)
+from src.api.validadores_comunes import clave_cumple_politica, texto_no_vacio
 from src.aplicacion.casos_uso.completar_registro import (AutorizacionRequerida,
                                                          CompletarRegistro,
                                                          TokenInvalido)
@@ -17,7 +16,7 @@ router = APIRouter(prefix="/auth", tags=["autenticacion"])
 from src.api.dependencias import (obtener_caso_uso_restablecer_contrasena,
                                   obtener_caso_uso_solicitar_restablecimiento)
 from src.aplicacion.casos_uso.recuperar_contrasena import (
-    RestablecerContrasena, SolicitarRestablecimiento)
+    ClaveReutilizada, RestablecerContrasena, SolicitarRestablecimiento)
 from src.aplicacion.casos_uso.recuperar_contrasena import \
     TokenInvalido as TokenRestablecimientoInvalido
 
@@ -48,39 +47,17 @@ class CompletarRegistroRequest(BaseModel):
     @field_validator("codigo_token")
     @classmethod
     def codigo_token_no_vacio(cls, v: str) -> str:
-        if not v or not v.strip():
-            raise ValueError("El código de invitación es obligatorio")
-        return v
+        return texto_no_vacio(v)
 
     @field_validator("clave")
     @classmethod
-    def clave_cumple_politica(cls, v: str) -> str:
-        if len(v) < 12:
-            raise ValueError("La contraseña debe tener al menos 12 caracteres")
-
-        tiene_mayuscula = re.search(r"[A-Z]", v) is not None
-        tiene_minuscula = re.search(r"[a-z]", v) is not None
-        tiene_numero = re.search(r"\d", v) is not None
-        tiene_especial = re.search(r"[^A-Za-z0-9]", v) is not None
-
-        tipos_presentes = sum(
-            [tiene_mayuscula, tiene_minuscula, tiene_numero, tiene_especial]
-        )
-        if tipos_presentes < 3:
-            raise ValueError(
-                "La contraseña debe combinar al menos tres de los siguientes: "
-                "mayúsculas, minúsculas, números y caracteres especiales"
-            )
-        return v
+    def _clave_cumple_politica(cls, v: str) -> str:
+        return clave_cumple_politica(v)
 
     @field_validator("nombres", "apellidos")
     @classmethod
     def nombre_no_vacio(cls, v: str) -> str:
-        if not v or not v.strip():
-            raise ValueError("Este campo no puede estar vacío")
-        if len(v.strip()) < 2:
-            raise ValueError("Debe tener al menos 2 caracteres")
-        return v.strip()
+        return texto_no_vacio(v, minimo=2)
 
 
 class UsuarioResponse(BaseModel):
@@ -101,25 +78,12 @@ class RestablecerContrasenaRequest(BaseModel):
     @field_validator("codigo_token")
     @classmethod
     def codigo_no_vacio(cls, v: str) -> str:
-        if not v or not v.strip():
-            raise ValueError("El código de restablecimiento es obligatorio")
-        return v
+        return texto_no_vacio(v)
 
     @field_validator("clave_nueva")
     @classmethod
-    def clave_cumple_politica(cls, v: str) -> str:
-        if len(v) < 12:
-            raise ValueError("La contraseña debe tener al menos 12 caracteres")
-        tiene_mayuscula = re.search(r"[A-Z]", v) is not None
-        tiene_minuscula = re.search(r"[a-z]", v) is not None
-        tiene_numero = re.search(r"\d", v) is not None
-        tiene_especial = re.search(r"[^A-Za-z0-9]", v) is not None
-        if sum([tiene_mayuscula, tiene_minuscula, tiene_numero, tiene_especial]) < 3:
-            raise ValueError(
-                "La contraseña debe combinar al menos tres de: "
-                "mayúsculas, minúsculas, números y caracteres especiales"
-            )
-        return v
+    def _clave_cumple_politica(cls, v: str) -> str:
+        return clave_cumple_politica(v)
 
 
 class MensajeResponse(BaseModel):
@@ -225,6 +189,11 @@ async def restablecer_contrasena(
     except TokenRestablecimientoInvalido:
         raise HTTPException(
             status_code=401, detail="Token inválido, expirado o ya utilizado"
+        )
+    except ClaveReutilizada:
+        raise HTTPException(
+            status_code=400,
+            detail="No puede reutilizar una de sus últimas 5 contraseñas",
         )
 
     return MensajeResponse(mensaje="Contraseña actualizada correctamente")

@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Optional
 
 from bson import Decimal128, ObjectId
+from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.dominio.entidades.modelo_madurez import Dimension, ModeloMadurez
@@ -21,7 +22,13 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
         return modelo
 
     async def obtener_por_id(self, modelo_id: str) -> Optional[ModeloMadurez]:
-        doc = await self._coleccion.find_one({"_id": ObjectId(modelo_id)})
+        try:
+            id_valido = ObjectId(modelo_id)
+        except InvalidId:
+            # RNF-07: un id con formato inválido no debe filtrar detalles internos;
+            # se trata igual que "no encontrado".
+            return None
+        doc = await self._coleccion.find_one({"_id": id_valido})
         if doc is None:
             return None
         return self._a_entidad(doc)

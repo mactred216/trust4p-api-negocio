@@ -2,14 +2,16 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_caso_uso_consultar_modelo,
                                   obtener_caso_uso_crear_modelo_madurez,
                                   obtener_caso_uso_editar_dimension,
                                   obtener_caso_uso_listar_modelos,
-                                  obtener_caso_uso_quitar_dimension)
+                                  obtener_caso_uso_quitar_dimension,
+                                  obtener_repositorio_auditoria)
+from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     AgregarDimension, ConsultarModelo, CrearModeloMadurez, EditarDimension,
@@ -50,7 +52,27 @@ class CrearModeloRequest(BaseModel):
         v = v.strip()
         if not v:
             raise ValueError("Este campo no puede estar vacío")
+        if len(v) > 200:
+            raise ValueError("No puede exceder 200 caracteres")
         return v
+
+    @field_validator("descripcion")
+    @classmethod
+    def descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) > 1000:
+            raise ValueError("No puede exceder 1000 caracteres")
+        return v or None
+
+    @model_validator(mode="after")
+    def escala_coherente(self) -> "CrearModeloRequest":
+        if self.escala_min < 1 or self.escala_max < 1:
+            raise ValueError("La escala debe ser positiva")
+        if self.escala_min >= self.escala_max:
+            raise ValueError("escala_min debe ser menor que escala_max")
+        return self
 
 
 class DimensionRequest(BaseModel):
@@ -60,13 +82,35 @@ class DimensionRequest(BaseModel):
     orden: int
     descripcion: Optional[str] = None
 
-    @field_validator("codigo", "nombre")
+    @field_validator("codigo")
     @classmethod
-    def texto_no_vacio(cls, v: str) -> str:
+    def codigo_valido(cls, v: str) -> str:
         v = v.strip()
         if not v:
             raise ValueError("Este campo no puede estar vacío")
+        if len(v) > 50:
+            raise ValueError("No puede exceder 50 caracteres")
         return v
+
+    @field_validator("nombre")
+    @classmethod
+    def nombre_valido(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Este campo no puede estar vacío")
+        if len(v) > 200:
+            raise ValueError("No puede exceder 200 caracteres")
+        return v
+
+    @field_validator("descripcion")
+    @classmethod
+    def descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) > 1000:
+            raise ValueError("No puede exceder 1000 caracteres")
+        return v or None
 
     @field_validator("peso")
     @classmethod
@@ -97,7 +141,19 @@ class EditarDimensionRequest(BaseModel):
         v = v.strip()
         if not v:
             raise ValueError("Si se envía este campo, no puede estar vacío")
+        if len(v) > 200:
+            raise ValueError("No puede exceder 200 caracteres")
         return v
+
+    @field_validator("descripcion")
+    @classmethod
+    def descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) > 1000:
+            raise ValueError("No puede exceder 1000 caracteres")
+        return v or None
 
     @field_validator("peso")
     @classmethod
@@ -153,7 +209,8 @@ async def listar_modelos(
 async def crear_modelo(
     datos: CrearModeloRequest,
     caso_uso: CrearModeloMadurez = Depends(obtener_caso_uso_crear_modelo_madurez),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         modelo = await caso_uso.ejecutar(
@@ -168,6 +225,15 @@ async def crear_modelo(
             status_code=409,
             detail="Ya existe una versión del modelo con este identificador",
         )
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo.id,
+        "crear",
+        valores_nuevos={"version": modelo.version, "nombre": modelo.nombre},
+    )
     return _a_response(modelo)
 
 
@@ -191,7 +257,8 @@ async def agregar_dimension(
     modelo_id: str,
     datos: DimensionRequest,
     caso_uso: AgregarDimension = Depends(obtener_caso_uso_agregar_dimension),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         modelo = await caso_uso.ejecutar(
@@ -206,6 +273,18 @@ async def agregar_dimension(
         raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_nuevos={
+            "dimension_agregada": datos.codigo,
+            "peso": str(datos.peso),
+        },
+    )
     return _a_response(modelo)
 
 
@@ -215,7 +294,8 @@ async def editar_dimension(
     codigo: str,
     datos: EditarDimensionRequest,
     caso_uso: EditarDimension = Depends(obtener_caso_uso_editar_dimension),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         modelo = await caso_uso.ejecutar(
@@ -230,6 +310,15 @@ async def editar_dimension(
         raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_nuevos={"dimension_editada": codigo},
+    )
     return _a_response(modelo)
 
 
@@ -240,7 +329,8 @@ async def quitar_dimension(
     modelo_id: str,
     codigo: str,
     caso_uso: QuitarDimension = Depends(obtener_caso_uso_quitar_dimension),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         modelo = await caso_uso.ejecutar(modelo_id, codigo)
@@ -248,4 +338,13 @@ async def quitar_dimension(
         raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_nuevos={"dimension_quitada": codigo},
+    )
     return _a_response(modelo)

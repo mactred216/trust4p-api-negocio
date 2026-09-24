@@ -6,6 +6,7 @@ from pydantic import BaseModel, field_validator
 from src.api.dependencias import (obtener_caso_uso_asignar_consultor,
                                   obtener_caso_uso_consultar_usuario,
                                   obtener_caso_uso_desactivar_usuario,
+                                  obtener_caso_uso_desbloquear_usuario,
                                   obtener_caso_uso_editar_usuario,
                                   obtener_caso_uso_listar_usuarios,
                                   obtener_caso_uso_reactivar_usuario)
@@ -18,6 +19,7 @@ from src.aplicacion.casos_uso.asignar_consultor import (AsignarConsultor,
                                                         EmpresaNoEncontrada)
 from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
                                                          DesactivarUsuario,
+                                                         DesbloquearUsuario,
                                                          EditarUsuario,
                                                          ListarUsuarios,
                                                          ReactivarUsuario,
@@ -170,6 +172,36 @@ async def reactivar_usuario(
         usuario_id,
         "actualizar",
         valores_nuevos={"activo": True},
+    )
+
+
+@router.post(
+    "/{usuario_id}/desbloquear",
+    status_code=204,
+    summary="Desbloquear manualmente una cuenta bloqueada",
+    description="Exclusivo del administrador. Reinicia el contador de intentos "
+    "fallidos y levanta el bloqueo temporal (RF-04).",
+)
+async def desbloquear_usuario(
+    usuario_id: str,
+    caso_uso: DesbloquearUsuario = Depends(obtener_caso_uso_desbloquear_usuario),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        await caso_uso.ejecutar(usuario_id)
+    except UsuarioNoEncontrado:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "usuarios",
+        usuario_id,
+        "actualizar",
+        valores_nuevos={"bloqueado_hasta": None},
     )
 
 

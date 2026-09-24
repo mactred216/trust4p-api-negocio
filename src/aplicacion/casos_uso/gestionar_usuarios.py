@@ -85,3 +85,24 @@ class ReactivarUsuario:
 
         usuario.reactivar()
         await self._usuarios.actualizar(usuario)
+
+
+class DesbloquearUsuario:
+    """Pendiente #5: hoy el desbloqueo tras 5 intentos fallidos (RF-04) solo se
+    revertía editando Atlas a mano. Permite al administrador reiniciar el
+    contador de intentos y levantar el bloqueo manualmente."""
+
+    def __init__(self, repo: RepositorioUsuario):
+        self._usuarios = repo
+
+    async def ejecutar(self, usuario_id: str) -> Usuario:
+        usuario = await self._usuarios.obtener_por_id(usuario_id)
+        if usuario is None:
+            raise UsuarioNoEncontrado()
+
+        if usuario.bloqueado_hasta is None:
+            raise ValueError("El usuario no se encuentra bloqueado")
+
+        usuario.reiniciar_intentos()
+        await self._usuarios.actualizar(usuario)
+        return usuario

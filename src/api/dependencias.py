@@ -9,6 +9,7 @@ from src.aplicacion.casos_uso.gestionar_roles import (AgregarPermisoARol,
                                                       QuitarPermisoDeRol)
 from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
                                                          DesactivarUsuario,
+                                                         DesbloquearUsuario,
                                                          EditarUsuario,
                                                          ListarUsuarios,
                                                          ReactivarUsuario)
@@ -187,6 +188,12 @@ def obtener_caso_uso_reactivar_usuario(
     repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
 ) -> ReactivarUsuario:
     return ReactivarUsuario(repo)
+
+
+def obtener_caso_uso_desbloquear_usuario(
+    repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> DesbloquearUsuario:
+    return DesbloquearUsuario(repo)
 
 
 def obtener_caso_uso_asignar_consultor(

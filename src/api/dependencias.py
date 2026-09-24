@@ -223,14 +223,18 @@ def obtener_caso_uso_listar_permisos(
 def obtener_caso_uso_agregar_permiso(
     repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
     repo_permiso: RepositorioMongoPermiso = Depends(obtener_repositorio_permiso),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
 ) -> AgregarPermisoARol:
-    return AgregarPermisoARol(repo_rol, repo_permiso)
+    return AgregarPermisoARol(repo_rol, repo_permiso, repo_usuario, repo_sesion)
 
 
 def obtener_caso_uso_quitar_permiso(
     repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
 ) -> QuitarPermisoDeRol:
-    return QuitarPermisoDeRol(repo_rol)
+    return QuitarPermisoDeRol(repo_rol, repo_usuario, repo_sesion)
 
 
 def obtener_repositorio_auditoria(

@@ -28,6 +28,15 @@ class CondicionActivacion:
 
 
 @dataclass
+class Nivel:
+    nivel: int
+    nombre: str
+    descripcion: str
+    umbral_min: Decimal
+    umbral_max: Decimal
+
+
+@dataclass
 class Pregunta:
     codigo: str
     dimension_codigo: str
@@ -54,7 +63,7 @@ class ModeloMadurez:
     publicado_en: Optional[datetime] = None
     publicado_por: Optional[str] = None
     dimensiones: list[Dimension] = field(default_factory=list)
-    niveles: list = field(default_factory=list)  # RF-32, HU-033
+    niveles: list[Nivel] = field(default_factory=list)  # RF-32, HU-033
     preguntas: list[Pregunta] = field(default_factory=list)  # RF-29/RF-31, HU-032
     creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -183,6 +192,76 @@ class ModeloMadurez:
                     f"La suma de los pesos de las preguntas de la dimensión "
                     f"'{dimension.codigo}' es {suma}, debe ser igual a 1"
                 )
+
+    def agregar_nivel(self, nivel: Nivel) -> None:
+        self._validar_editable()
+        if nivel.nivel < self.escala_min or nivel.nivel > self.escala_max:
+            raise ValueError(
+                f"El nivel {nivel.nivel} debe estar entre {self.escala_min} y {self.escala_max}"
+            )
+        if nivel.umbral_min >= nivel.umbral_max:
+            raise ValueError("umbral_min debe ser menor que umbral_max")
+        if any(n.nivel == nivel.nivel for n in self.niveles):
+            raise ValueError(f"Ya existe un nivel {nivel.nivel} en esta versión")
+        self.niveles.append(nivel)
+
+    def editar_nivel(
+        self,
+        numero_nivel: int,
+        nombre: Optional[str] = None,
+        descripcion: Optional[str] = None,
+        umbral_min: Optional[Decimal] = None,
+        umbral_max: Optional[Decimal] = None,
+    ) -> None:
+        self._validar_editable()
+        nivel = self._buscar_nivel(numero_nivel)
+        nuevo_min = umbral_min if umbral_min is not None else nivel.umbral_min
+        nuevo_max = umbral_max if umbral_max is not None else nivel.umbral_max
+        if nuevo_min >= nuevo_max:
+            raise ValueError("umbral_min debe ser menor que umbral_max")
+        if nombre is not None:
+            nivel.nombre = nombre
+        if descripcion is not None:
+            nivel.descripcion = descripcion
+        nivel.umbral_min = nuevo_min
+        nivel.umbral_max = nuevo_max
+
+    def quitar_nivel(self, numero_nivel: int) -> None:
+        self._validar_editable()
+        nivel = self._buscar_nivel(numero_nivel)
+        self.niveles.remove(nivel)
+
+    def validar_niveles(self) -> None:
+        """R-04: los umbrales de los niveles deben cubrir la escala completa sin solapamiento."""
+        if not self.niveles:
+            raise ValueError("El modelo no tiene niveles de rúbrica definidos")
+
+        ordenados = sorted(self.niveles, key=lambda n: n.umbral_min)
+
+        if ordenados[0].umbral_min != Decimal(self.escala_min):
+            raise ValueError(
+                f"La rúbrica no cubre el inicio de la escala ({self.escala_min})"
+            )
+        if ordenados[-1].umbral_max != Decimal(self.escala_max):
+            raise ValueError(
+                f"La rúbrica no cubre el final de la escala ({self.escala_max})"
+            )
+
+        for actual, siguiente in zip(ordenados, ordenados[1:]):
+            if actual.umbral_max < siguiente.umbral_min:
+                raise ValueError(
+                    f"Hay un vacío entre los niveles {actual.nivel} y {siguiente.nivel}"
+                )
+            if actual.umbral_max > siguiente.umbral_min:
+                raise ValueError(
+                    f"Los niveles {actual.nivel} y {siguiente.nivel} tienen rangos solapados"
+                )
+
+    def _buscar_nivel(self, numero_nivel: int) -> Nivel:
+        for nivel in self.niveles:
+            if nivel.nivel == numero_nivel:
+                return nivel
+        raise ValueError(f"No existe el nivel {numero_nivel} en esta versión")
 
     def _buscar_pregunta(self, codigo: str) -> Pregunta:
         for pregunta in self.preguntas:

@@ -4,7 +4,7 @@ import pytest
 
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
                                                   Dimension, ModeloMadurez,
-                                                  Pregunta)
+                                                  Nivel, Pregunta)
 
 
 def crear_modelo_prueba(publicado: bool = False) -> ModeloMadurez:
@@ -195,3 +195,97 @@ def test_validar_pesos_dimension_sin_preguntas_falla():
     modelo = crear_modelo_con_dimension()
     with pytest.raises(ValueError):
         modelo.validar_pesos_preguntas()
+
+
+# HU-033: definir rúbrica de la escala
+def crear_nivel(numero=1, umbral_min="1", umbral_max="5") -> Nivel:
+    return Nivel(
+        nivel=numero,
+        nombre=f"Nivel {numero}",
+        descripcion="Descripción del nivel",
+        umbral_min=Decimal(umbral_min),
+        umbral_max=Decimal(umbral_max),
+    )
+
+
+def test_agregar_nivel():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_nivel(crear_nivel())
+    assert len(modelo.niveles) == 1
+
+
+def test_agregar_nivel_fuera_de_la_escala_falla():
+    modelo = crear_modelo_prueba()  # escala_min=1, escala_max=10
+    with pytest.raises(ValueError):
+        modelo.agregar_nivel(crear_nivel(numero=99))
+
+
+def test_agregar_nivel_con_umbrales_invertidos_falla():
+    modelo = crear_modelo_prueba()
+    with pytest.raises(ValueError):
+        modelo.agregar_nivel(crear_nivel(umbral_min="5", umbral_max="1"))
+
+
+def test_agregar_nivel_duplicado_falla():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_nivel(crear_nivel(1))
+    with pytest.raises(ValueError):
+        modelo.agregar_nivel(crear_nivel(1, umbral_min="5", umbral_max="8"))
+
+
+def test_editar_nivel_actualiza_solo_campos_enviados():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_nivel(crear_nivel())
+    modelo.editar_nivel(1, umbral_max=Decimal("6"))
+    assert modelo.niveles[0].umbral_max == Decimal("6")
+    assert modelo.niveles[0].umbral_min == Decimal("1")
+
+
+def test_editar_nivel_inexistente_falla():
+    modelo = crear_modelo_prueba()
+    with pytest.raises(ValueError):
+        modelo.editar_nivel(1, umbral_max=Decimal("6"))
+
+
+def test_quitar_nivel():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_nivel(crear_nivel())
+    modelo.quitar_nivel(1)
+    assert modelo.niveles == []
+
+
+# R-04: los umbrales deben cubrir la escala completa sin solapamiento (RF-32, HU-033 CA-01)
+def test_validar_niveles_que_cubren_la_escala_no_lanza():
+    modelo = crear_modelo_prueba()  # escala 1-10
+    modelo.agregar_nivel(crear_nivel(1, "1", "5"))
+    modelo.agregar_nivel(crear_nivel(2, "5", "10"))
+    modelo.validar_niveles()  # no debe lanzar
+
+
+def test_validar_niveles_con_solapamiento_falla():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_nivel(crear_nivel(1, "1", "6"))
+    modelo.agregar_nivel(crear_nivel(2, "5", "10"))
+    with pytest.raises(ValueError):
+        modelo.validar_niveles()
+
+
+def test_validar_niveles_con_vacio_falla():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_nivel(crear_nivel(1, "1", "4"))
+    modelo.agregar_nivel(crear_nivel(2, "5", "10"))
+    with pytest.raises(ValueError):
+        modelo.validar_niveles()
+
+
+def test_validar_niveles_que_no_empiezan_en_escala_min_falla():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_nivel(crear_nivel(1, "2", "10"))
+    with pytest.raises(ValueError):
+        modelo.validar_niveles()
+
+
+def test_validar_niveles_sin_niveles_falla():
+    modelo = crear_modelo_prueba()
+    with pytest.raises(ValueError):
+        modelo.validar_niveles()

@@ -3,7 +3,8 @@ from typing import Optional
 
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
                                                   Dimension, ModeloMadurez,
-                                                  OpcionPregunta, Pregunta)
+                                                  Nivel, OpcionPregunta,
+                                                  Pregunta)
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
 
@@ -219,5 +220,77 @@ class QuitarPregunta:
             raise ModeloNoEncontrado()
 
         modelo.quitar_pregunta(codigo)
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class AgregarNivel:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(
+        self,
+        modelo_id: str,
+        nivel: int,
+        nombre: str,
+        descripcion: str,
+        umbral_min: Decimal,
+        umbral_max: Decimal,
+    ) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.agregar_nivel(
+            Nivel(
+                nivel=nivel,
+                nombre=nombre,
+                descripcion=descripcion,
+                umbral_min=umbral_min,
+                umbral_max=umbral_max,
+            )
+        )
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class EditarNivel:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(
+        self,
+        modelo_id: str,
+        numero_nivel: int,
+        nombre: Optional[str] = None,
+        descripcion: Optional[str] = None,
+        umbral_min: Optional[Decimal] = None,
+        umbral_max: Optional[Decimal] = None,
+    ) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.editar_nivel(
+            numero_nivel,
+            nombre=nombre,
+            descripcion=descripcion,
+            umbral_min=umbral_min,
+            umbral_max=umbral_max,
+        )
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class QuitarNivel:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(self, modelo_id: str, numero_nivel: int) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.quitar_nivel(numero_nivel)
         await self._modelos.actualizar(modelo)
         return modelo

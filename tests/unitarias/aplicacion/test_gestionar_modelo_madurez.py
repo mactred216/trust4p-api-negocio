@@ -4,11 +4,12 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
-    AgregarDimension, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
-    EditarDimension, EditarPregunta, ListarModelos, ModeloNoEncontrado,
-    QuitarDimension, QuitarPregunta, VersionDuplicada)
+    AgregarDimension, AgregarNivel, AgregarPregunta, ConsultarModelo,
+    CrearModeloMadurez, EditarDimension, EditarNivel, EditarPregunta,
+    ListarModelos, ModeloNoEncontrado, QuitarDimension, QuitarNivel,
+    QuitarPregunta, VersionDuplicada)
 from src.dominio.entidades.modelo_madurez import (Dimension, ModeloMadurez,
-                                                  Pregunta)
+                                                  Nivel, Pregunta)
 
 
 def crear_modelo_prueba() -> ModeloMadurez:
@@ -232,4 +233,84 @@ async def test_quitar_pregunta():
     resultado = await caso_uso.ejecutar("modelo-1", "p1")
 
     assert resultado.preguntas == []
+    repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_agregar_nivel():
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = crear_modelo_prueba()
+
+    caso_uso = AgregarNivel(repo)
+    modelo = await caso_uso.ejecutar(
+        "modelo-1",
+        nivel=1,
+        nombre="Inicial",
+        descripcion="Sin proceso formal",
+        umbral_min=Decimal("1"),
+        umbral_max=Decimal("5"),
+    )
+
+    assert len(modelo.niveles) == 1
+    repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_agregar_nivel_a_modelo_inexistente_falla():
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = None
+
+    caso_uso = AgregarNivel(repo)
+    with pytest.raises(ModeloNoEncontrado):
+        await caso_uso.ejecutar(
+            "no-existe",
+            nivel=1,
+            nombre="Inicial",
+            descripcion="Sin proceso formal",
+            umbral_min=Decimal("1"),
+            umbral_max=Decimal("5"),
+        )
+
+
+@pytest.mark.asyncio
+async def test_editar_nivel():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_nivel(
+        Nivel(
+            nivel=1,
+            nombre="Inicial",
+            descripcion="Sin proceso formal",
+            umbral_min=Decimal("1"),
+            umbral_max=Decimal("5"),
+        )
+    )
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = modelo
+
+    caso_uso = EditarNivel(repo)
+    resultado = await caso_uso.ejecutar("modelo-1", 1, umbral_max=Decimal("6"))
+
+    assert resultado.niveles[0].umbral_max == Decimal("6")
+    repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_quitar_nivel():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_nivel(
+        Nivel(
+            nivel=1,
+            nombre="Inicial",
+            descripcion="Sin proceso formal",
+            umbral_min=Decimal("1"),
+            umbral_max=Decimal("5"),
+        )
+    )
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = modelo
+
+    caso_uso = QuitarNivel(repo)
+    resultado = await caso_uso.ejecutar("modelo-1", 1)
+
+    assert resultado.niveles == []
     repo.actualizar.assert_called_once()

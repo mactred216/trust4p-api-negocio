@@ -5,13 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator, model_validator
 
 from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
+                                  obtener_caso_uso_agregar_nivel,
                                   obtener_caso_uso_agregar_pregunta,
                                   obtener_caso_uso_consultar_modelo,
                                   obtener_caso_uso_crear_modelo_madurez,
                                   obtener_caso_uso_editar_dimension,
+                                  obtener_caso_uso_editar_nivel,
                                   obtener_caso_uso_editar_pregunta,
                                   obtener_caso_uso_listar_modelos,
                                   obtener_caso_uso_quitar_dimension,
+                                  obtener_caso_uso_quitar_nivel,
                                   obtener_caso_uso_quitar_pregunta,
                                   obtener_repositorio_auditoria)
 from src.api.middleware.auditoria import registrar_accion
@@ -22,9 +25,10 @@ from src.api.validadores_comunes import (descripcion_opcional, entero_positivo,
                                          texto_no_vacio,
                                          texto_opcional_no_vacio)
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
-    AgregarDimension, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
-    EditarDimension, EditarPregunta, ListarModelos, ModeloNoEncontrado,
-    QuitarDimension, QuitarPregunta, VersionDuplicada)
+    AgregarDimension, AgregarNivel, AgregarPregunta, ConsultarModelo,
+    CrearModeloMadurez, EditarDimension, EditarNivel, EditarPregunta,
+    ListarModelos, ModeloNoEncontrado, QuitarDimension, QuitarNivel,
+    QuitarPregunta, VersionDuplicada)
 
 TipoPregunta = Literal[
     "seleccion_unica", "seleccion_multiple", "escala", "numerica", "texto_libre"
@@ -68,6 +72,14 @@ class PreguntaResponse(BaseModel):
     condicion: Optional[CondicionResponse]
 
 
+class NivelResponse(BaseModel):
+    nivel: int
+    nombre: str
+    descripcion: str
+    umbral_min: Decimal
+    umbral_max: Decimal
+
+
 class ModeloMadurezResponse(BaseModel):
     id: str
     version: str
@@ -78,6 +90,7 @@ class ModeloMadurezResponse(BaseModel):
     publicado: bool
     dimensiones: list[DimensionResponse]
     preguntas: list[PreguntaResponse]
+    niveles: list[NivelResponse]
 
 
 class CrearModeloRequest(BaseModel):
@@ -263,6 +276,46 @@ class EditarPreguntaRequest(BaseModel):
         return entero_positivo_opcional(v)
 
 
+class NivelRequest(BaseModel):
+    nivel: int
+    nombre: str
+    descripcion: str
+    umbral_min: Decimal
+    umbral_max: Decimal
+
+    @field_validator("nombre")
+    @classmethod
+    def _nombre_valido(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=200)
+
+    @field_validator("descripcion")
+    @classmethod
+    def _descripcion_valida(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=1000)
+
+    @field_validator("nivel")
+    @classmethod
+    def _nivel_valido(cls, v: int) -> int:
+        return entero_positivo(v)
+
+
+class EditarNivelRequest(BaseModel):
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    umbral_min: Optional[Decimal] = None
+    umbral_max: Optional[Decimal] = None
+
+    @field_validator("nombre")
+    @classmethod
+    def _nombre_no_vacio(cls, v: Optional[str]) -> Optional[str]:
+        return texto_opcional_no_vacio(v, maximo=200)
+
+    @field_validator("descripcion")
+    @classmethod
+    def _descripcion_no_vacia(cls, v: Optional[str]) -> Optional[str]:
+        return texto_opcional_no_vacio(v, maximo=1000)
+
+
 def _a_response(modelo) -> ModeloMadurezResponse:
     return ModeloMadurezResponse(
         id=modelo.id,
@@ -308,6 +361,16 @@ def _a_response(modelo) -> ModeloMadurezResponse:
                 ),
             )
             for p in modelo.preguntas
+        ],
+        niveles=[
+            NivelResponse(
+                nivel=n.nivel,
+                nombre=n.nombre,
+                descripcion=n.descripcion,
+                umbral_min=n.umbral_min,
+                umbral_max=n.umbral_max,
+            )
+            for n in modelo.niveles
         ],
     )
 
@@ -571,5 +634,108 @@ async def quitar_pregunta(
         modelo_id,
         "actualizar",
         valores_nuevos={"pregunta_quitada": codigo},
+    )
+    return _a_response(modelo)
+
+
+@router.post(
+    "/{modelo_id}/niveles", response_model=ModeloMadurezResponse, status_code=201
+)
+async def agregar_nivel(
+    modelo_id: str,
+    datos: NivelRequest,
+    caso_uso: AgregarNivel = Depends(obtener_caso_uso_agregar_nivel),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        modelo = await caso_uso.ejecutar(
+            modelo_id,
+            nivel=datos.nivel,
+            nombre=datos.nombre,
+            descripcion=datos.descripcion,
+            umbral_min=datos.umbral_min,
+            umbral_max=datos.umbral_max,
+        )
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_nuevos={
+            "nivel_agregado": datos.nivel,
+            "umbral_min": str(datos.umbral_min),
+            "umbral_max": str(datos.umbral_max),
+        },
+    )
+    return _a_response(modelo)
+
+
+@router.patch(
+    "/{modelo_id}/niveles/{numero_nivel}", response_model=ModeloMadurezResponse
+)
+async def editar_nivel(
+    modelo_id: str,
+    numero_nivel: int,
+    datos: EditarNivelRequest,
+    caso_uso: EditarNivel = Depends(obtener_caso_uso_editar_nivel),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        modelo = await caso_uso.ejecutar(
+            modelo_id,
+            numero_nivel,
+            nombre=datos.nombre,
+            descripcion=datos.descripcion,
+            umbral_min=datos.umbral_min,
+            umbral_max=datos.umbral_max,
+        )
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_nuevos={"nivel_editado": numero_nivel},
+    )
+    return _a_response(modelo)
+
+
+@router.delete(
+    "/{modelo_id}/niveles/{numero_nivel}", response_model=ModeloMadurezResponse
+)
+async def quitar_nivel(
+    modelo_id: str,
+    numero_nivel: int,
+    caso_uso: QuitarNivel = Depends(obtener_caso_uso_quitar_nivel),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        modelo = await caso_uso.ejecutar(modelo_id, numero_nivel)
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_nuevos={"nivel_quitado": numero_nivel},
     )
     return _a_response(modelo)

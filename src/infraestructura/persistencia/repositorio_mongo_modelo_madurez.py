@@ -7,7 +7,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
                                                   Dimension, ModeloMadurez,
-                                                  OpcionPregunta, Pregunta)
+                                                  Nivel, OpcionPregunta,
+                                                  Pregunta)
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
 
@@ -73,7 +74,16 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                 )
                 for d in doc.get("dimensiones", [])
             ],
-            niveles=doc.get("niveles", []),
+            niveles=[
+                Nivel(
+                    nivel=n["nivel"],
+                    nombre=n["nombre"],
+                    descripcion=n["descripcion"],
+                    umbral_min=self._decimal(n["umbral_min"]),
+                    umbral_max=self._decimal(n["umbral_max"]),
+                )
+                for n in doc.get("niveles", [])
+            ],
             preguntas=[
                 Pregunta(
                     codigo=p["codigo"],
@@ -124,7 +134,16 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                 }
                 for d in modelo.dimensiones
             ],
-            "niveles": modelo.niveles,
+            "niveles": [
+                {
+                    "nivel": n.nivel,
+                    "nombre": n.nombre,
+                    "descripcion": n.descripcion,
+                    "umbral_min": Decimal128(n.umbral_min),
+                    "umbral_max": Decimal128(n.umbral_max),
+                }
+                for n in modelo.niveles
+            ],
             "preguntas": [
                 {
                     "codigo": p.codigo,

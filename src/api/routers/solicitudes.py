@@ -6,6 +6,7 @@ from src.api.dependencias import (obtener_caso_uso_radicar_solicitud,
                                   obtener_repositorio_auditoria)
 from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
+from src.api.validadores_comunes import texto_no_vacio
 from src.aplicacion.casos_uso.radicar_solicitud import (RadicarSolicitud,
                                                         SolicitudDuplicada)
 from src.aplicacion.casos_uso.resolver_solicitud import (ResolverSolicitud,
@@ -22,15 +23,8 @@ class RadicarSolicitudRequest(BaseModel):
 
     @field_validator("nombre_empresa", "nombre_solicitante")
     @classmethod
-    def texto_no_vacio(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        if len(v) < 2:
-            raise ValueError("Debe tener al menos 2 caracteres")
-        if len(v) > 200:
-            raise ValueError("No puede exceder 200 caracteres")
-        return v
+    def _texto_no_vacio(cls, v: str) -> str:
+        return texto_no_vacio(v, minimo=2, maximo=200)
 
 
 class SolicitudResponse(BaseModel):
@@ -46,11 +40,8 @@ class AprobarSolicitudRequest(BaseModel):
 
     @field_validator("sector_id", "sector_codigo", "sector_nombre")
     @classmethod
-    def texto_no_vacio(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        return v
+    def _texto_no_vacio(cls, v: str) -> str:
+        return texto_no_vacio(v)
 
 
 class RechazarSolicitudRequest(BaseModel):
@@ -59,16 +50,7 @@ class RechazarSolicitudRequest(BaseModel):
     @field_validator("motivo")
     @classmethod
     def motivo_valido(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("El motivo de rechazo es obligatorio")
-        if len(v) < 10:
-            raise ValueError(
-                "El motivo debe ser suficientemente descriptivo (mínimo 10 caracteres)"
-            )
-        if len(v) > 500:
-            raise ValueError("El motivo no puede exceder 500 caracteres")
-        return v
+        return texto_no_vacio(v, minimo=10, maximo=500)
 
 
 class EmpresaResponse(BaseModel):

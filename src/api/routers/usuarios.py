@@ -10,6 +10,7 @@ from src.api.dependencias import (obtener_caso_uso_asignar_consultor,
                                   obtener_caso_uso_listar_usuarios,
                                   obtener_caso_uso_reactivar_usuario)
 from src.api.middleware.autorizacion import requiere_rol
+from src.api.validadores_comunes import texto_no_vacio, texto_opcional_no_vacio
 from src.aplicacion.casos_uso.asignar_consultor import (AsignarConsultor,
                                                         ConsultorInactivo,
                                                         ConsultorNoEncontrado,
@@ -47,12 +48,7 @@ class EditarUsuarioRequest(BaseModel):
     @field_validator("nombres", "apellidos")
     @classmethod
     def si_viene_no_vacio(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        if not v:
-            raise ValueError("Si se envía este campo, no puede estar vacío")
-        return v
+        return texto_opcional_no_vacio(v)
 
     @field_validator("rol_codigo")
     @classmethod
@@ -72,9 +68,7 @@ class AsignacionRequest(BaseModel):
     @field_validator("empresa_id")
     @classmethod
     def empresa_id_no_vacio(cls, v: str) -> str:
-        if not v or not v.strip():
-            raise ValueError("El id de la empresa es obligatorio")
-        return v
+        return texto_no_vacio(v)
 
 
 def _a_response(usuario) -> UsuarioResponse:

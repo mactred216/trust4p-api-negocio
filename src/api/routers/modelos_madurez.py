@@ -16,6 +16,11 @@ from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_repositorio_auditoria)
 from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
+from src.api.validadores_comunes import (descripcion_opcional, entero_positivo,
+                                         entero_positivo_opcional,
+                                         peso_opcional_valido, peso_valido,
+                                         texto_no_vacio,
+                                         texto_opcional_no_vacio)
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     AgregarDimension, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
     EditarDimension, EditarPregunta, ListarModelos, ModeloNoEncontrado,
@@ -84,23 +89,13 @@ class CrearModeloRequest(BaseModel):
 
     @field_validator("version", "nombre")
     @classmethod
-    def texto_no_vacio(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        if len(v) > 200:
-            raise ValueError("No puede exceder 200 caracteres")
-        return v
+    def _texto_no_vacio(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=200)
 
     @field_validator("descripcion")
     @classmethod
-    def descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        if len(v) > 1000:
-            raise ValueError("No puede exceder 1000 caracteres")
-        return v or None
+    def _descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
+        return descripcion_opcional(v)
 
     @model_validator(mode="after")
     def escala_coherente(self) -> "CrearModeloRequest":
@@ -120,47 +115,28 @@ class DimensionRequest(BaseModel):
 
     @field_validator("codigo")
     @classmethod
-    def codigo_valido(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        if len(v) > 50:
-            raise ValueError("No puede exceder 50 caracteres")
-        return v
+    def _codigo_valido(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=50)
 
     @field_validator("nombre")
     @classmethod
-    def nombre_valido(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        if len(v) > 200:
-            raise ValueError("No puede exceder 200 caracteres")
-        return v
+    def _nombre_valido(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=200)
 
     @field_validator("descripcion")
     @classmethod
-    def descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        if len(v) > 1000:
-            raise ValueError("No puede exceder 1000 caracteres")
-        return v or None
+    def _descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
+        return descripcion_opcional(v)
 
     @field_validator("peso")
     @classmethod
-    def peso_valido(cls, v: Decimal) -> Decimal:
-        if v <= 0 or v > 1:
-            raise ValueError("El peso debe ser mayor que 0 y menor o igual a 1")
-        return v
+    def _peso_valido(cls, v: Decimal) -> Decimal:
+        return peso_valido(v)
 
     @field_validator("orden")
     @classmethod
-    def orden_valido(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("El orden debe ser un entero positivo")
-        return v
+    def _orden_valido(cls, v: int) -> int:
+        return entero_positivo(v)
 
 
 class EditarDimensionRequest(BaseModel):
@@ -171,43 +147,23 @@ class EditarDimensionRequest(BaseModel):
 
     @field_validator("nombre")
     @classmethod
-    def nombre_no_vacio(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        if not v:
-            raise ValueError("Si se envía este campo, no puede estar vacío")
-        if len(v) > 200:
-            raise ValueError("No puede exceder 200 caracteres")
-        return v
+    def _nombre_no_vacio(cls, v: Optional[str]) -> Optional[str]:
+        return texto_opcional_no_vacio(v, maximo=200)
 
     @field_validator("descripcion")
     @classmethod
-    def descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        if len(v) > 1000:
-            raise ValueError("No puede exceder 1000 caracteres")
-        return v or None
+    def _descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
+        return descripcion_opcional(v)
 
     @field_validator("peso")
     @classmethod
-    def peso_valido(cls, v: Optional[Decimal]) -> Optional[Decimal]:
-        if v is None:
-            return v
-        if v <= 0 or v > 1:
-            raise ValueError("El peso debe ser mayor que 0 y menor o igual a 1")
-        return v
+    def _peso_valido(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        return peso_opcional_valido(v)
 
     @field_validator("orden")
     @classmethod
-    def orden_valido(cls, v: Optional[int]) -> Optional[int]:
-        if v is None:
-            return v
-        if v <= 0:
-            raise ValueError("El orden debe ser un entero positivo")
-        return v
+    def _orden_valido(cls, v: Optional[int]) -> Optional[int]:
+        return entero_positivo_opcional(v)
 
 
 class OpcionRequest(BaseModel):
@@ -217,13 +173,8 @@ class OpcionRequest(BaseModel):
 
     @field_validator("codigo", "etiqueta")
     @classmethod
-    def texto_no_vacio(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        if len(v) > 200:
-            raise ValueError("No puede exceder 200 caracteres")
-        return v
+    def _texto_no_vacio(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=200)
 
 
 class CondicionRequest(BaseModel):
@@ -233,11 +184,8 @@ class CondicionRequest(BaseModel):
 
     @field_validator("pregunta_codigo", "valor")
     @classmethod
-    def texto_no_vacio(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        return v
+    def _texto_no_vacio(cls, v: str) -> str:
+        return texto_no_vacio(v)
 
 
 class PreguntaRequest(BaseModel):
@@ -255,55 +203,33 @@ class PreguntaRequest(BaseModel):
 
     @field_validator("codigo")
     @classmethod
-    def codigo_valido(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        if len(v) > 50:
-            raise ValueError("No puede exceder 50 caracteres")
-        return v
+    def _codigo_valido(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=50)
 
     @field_validator("dimension_codigo")
     @classmethod
-    def dimension_codigo_no_vacio(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        return v
+    def _dimension_codigo_no_vacio(cls, v: str) -> str:
+        return texto_no_vacio(v)
 
     @field_validator("enunciado")
     @classmethod
-    def enunciado_valido(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Este campo no puede estar vacío")
-        if len(v) > 1000:
-            raise ValueError("No puede exceder 1000 caracteres")
-        return v
+    def _enunciado_valido(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=1000)
 
     @field_validator("ayuda")
     @classmethod
-    def ayuda_valida(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        if len(v) > 1000:
-            raise ValueError("No puede exceder 1000 caracteres")
-        return v or None
+    def _ayuda_valida(cls, v: Optional[str]) -> Optional[str]:
+        return descripcion_opcional(v)
 
     @field_validator("peso")
     @classmethod
-    def peso_valido(cls, v: Decimal) -> Decimal:
-        if v <= 0 or v > 1:
-            raise ValueError("El peso debe ser mayor que 0 y menor o igual a 1")
-        return v
+    def _peso_valido(cls, v: Decimal) -> Decimal:
+        return peso_valido(v)
 
     @field_validator("orden")
     @classmethod
-    def orden_valido(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("El orden debe ser un entero positivo")
-        return v
+    def _orden_valido(cls, v: int) -> int:
+        return entero_positivo(v)
 
 
 class EditarPreguntaRequest(BaseModel):
@@ -318,31 +244,23 @@ class EditarPreguntaRequest(BaseModel):
 
     @field_validator("dimension_codigo", "enunciado")
     @classmethod
-    def texto_no_vacio_si_viene(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        if not v:
-            raise ValueError("Si se envía este campo, no puede estar vacío")
-        return v
+    def _texto_no_vacio_si_viene(cls, v: Optional[str]) -> Optional[str]:
+        return texto_opcional_no_vacio(v)
+
+    @field_validator("ayuda")
+    @classmethod
+    def _ayuda_valida(cls, v: Optional[str]) -> Optional[str]:
+        return descripcion_opcional(v)
 
     @field_validator("peso")
     @classmethod
-    def peso_valido(cls, v: Optional[Decimal]) -> Optional[Decimal]:
-        if v is None:
-            return v
-        if v <= 0 or v > 1:
-            raise ValueError("El peso debe ser mayor que 0 y menor o igual a 1")
-        return v
+    def _peso_valido(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        return peso_opcional_valido(v)
 
     @field_validator("orden")
     @classmethod
-    def orden_valido(cls, v: Optional[int]) -> Optional[int]:
-        if v is None:
-            return v
-        if v <= 0:
-            raise ValueError("El orden debe ser un entero positivo")
-        return v
+    def _orden_valido(cls, v: Optional[int]) -> Optional[int]:
+        return entero_positivo_opcional(v)
 
 
 def _a_response(modelo) -> ModeloMadurezResponse:

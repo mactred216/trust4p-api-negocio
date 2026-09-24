@@ -257,6 +257,18 @@ class ModeloMadurez:
                     f"Los niveles {actual.nivel} y {siguiente.nivel} tienen rangos solapados"
                 )
 
+    def publicar(self, publicado_por: str) -> None:
+        """RF-33/RF-34: publica la versión vigente. Ensambla R-02, R-03 y R-04;
+        a partir de aquí la versión queda inmutable (ver _validar_editable)."""
+        if self.publicado:
+            raise ValueError("La versión ya fue publicada")
+        self.validar_pesos_dimensiones()
+        self.validar_pesos_preguntas()
+        self.validar_niveles()
+        self.publicado = True
+        self.publicado_en = datetime.now(timezone.utc)
+        self.publicado_por = publicado_por
+
     def _buscar_nivel(self, numero_nivel: int) -> Nivel:
         for nivel in self.niveles:
             if nivel.nivel == numero_nivel:

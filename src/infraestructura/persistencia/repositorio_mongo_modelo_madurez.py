@@ -42,6 +42,14 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
             return None
         return self._a_entidad(doc)
 
+    async def obtener_vigente(self) -> Optional[ModeloMadurez]:
+        doc = await self._coleccion.find_one(
+            {"publicado": True}, sort=[("publicado_en", -1)]
+        )
+        if doc is None:
+            return None
+        return self._a_entidad(doc)
+
     async def actualizar(self, modelo: ModeloMadurez) -> None:
         await self._coleccion.update_one(
             {"_id": ObjectId(modelo.id)},

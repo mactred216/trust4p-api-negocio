@@ -289,3 +289,65 @@ def test_validar_niveles_sin_niveles_falla():
     modelo = crear_modelo_prueba()
     with pytest.raises(ValueError):
         modelo.validar_niveles()
+
+
+# HU-034: versionar modelo (publicar)
+def crear_modelo_publicable() -> ModeloMadurez:
+    modelo = crear_modelo_prueba()
+    modelo.agregar_dimension(crear_dimension("innovacion", "1", 1))
+    modelo.agregar_pregunta(crear_pregunta("p1", "innovacion", "1", 1))
+    modelo.agregar_nivel(crear_nivel(1, "1", "10"))
+    return modelo
+
+
+def test_publicar_modelo_completo_no_lanza():
+    modelo = crear_modelo_publicable()
+    modelo.publicar("admin-1")
+    assert modelo.publicado is True
+    assert modelo.publicado_por == "admin-1"
+    assert modelo.publicado_en is not None
+
+
+def test_publicar_sin_dimensiones_falla():
+    modelo = crear_modelo_prueba()
+    with pytest.raises(ValueError):
+        modelo.publicar("admin-1")
+
+
+def test_publicar_con_pesos_de_dimensiones_incorrectos_falla():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_dimension(crear_dimension("innovacion", "0.5", 1))
+    modelo.agregar_pregunta(crear_pregunta("p1", "innovacion", "1", 1))
+    modelo.agregar_nivel(crear_nivel(1, "1", "10"))
+    with pytest.raises(ValueError):
+        modelo.publicar("admin-1")
+
+
+def test_publicar_sin_preguntas_falla():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_dimension(crear_dimension("innovacion", "1", 1))
+    modelo.agregar_nivel(crear_nivel(1, "1", "10"))
+    with pytest.raises(ValueError):
+        modelo.publicar("admin-1")
+
+
+def test_publicar_sin_niveles_falla():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_dimension(crear_dimension("innovacion", "1", 1))
+    modelo.agregar_pregunta(crear_pregunta("p1", "innovacion", "1", 1))
+    with pytest.raises(ValueError):
+        modelo.publicar("admin-1")
+
+
+def test_publicar_una_version_ya_publicada_falla():
+    modelo = crear_modelo_publicable()
+    modelo.publicar("admin-1")
+    with pytest.raises(ValueError):
+        modelo.publicar("admin-1")
+
+
+def test_no_se_puede_editar_tras_publicar():
+    modelo = crear_modelo_publicable()
+    modelo.publicar("admin-1")
+    with pytest.raises(ValueError):
+        modelo.agregar_dimension(crear_dimension("cultura", "1", 2))

@@ -17,6 +17,11 @@ class RepositorioModeloMadurez(ABC):
     async def obtener_por_version(self, version: str) -> Optional[ModeloMadurez]: ...
 
     @abstractmethod
+    async def obtener_vigente(self) -> Optional[ModeloMadurez]:
+        """RF-33: la versión publicada más reciente (índice publicado + publicado_en)."""
+        ...
+
+    @abstractmethod
     async def actualizar(self, modelo: ModeloMadurez) -> None: ...
 
     @abstractmethod

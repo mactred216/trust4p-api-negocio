@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 from typing import Optional
 
@@ -294,3 +295,118 @@ class QuitarNivel:
         modelo.quitar_nivel(numero_nivel)
         await self._modelos.actualizar(modelo)
         return modelo
+
+
+class Publicar:
+    """RF-33/RF-34: publica la versión vigente, ensamblando R-02, R-03 y R-04."""
+
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(self, modelo_id: str, publicado_por: str) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.publicar(publicado_por)
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class ObtenerVersionVigente:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(self) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_vigente()
+        if modelo is None:
+            raise ModeloNoEncontrado()
+        return modelo
+
+
+def _siguiente_version(version_actual: str) -> str:
+    """RF-33 paso 1: incrementa el número de versión anterior. Si el
+    identificador termina en un número, lo incrementa; si no, le añade '-2'
+    (el campo es un identificador legible en texto libre, no un entero)."""
+    coincidencia = re.search(r"(\d+)$", version_actual)
+    if coincidencia:
+        numero = int(coincidencia.group(1)) + 1
+        return version_actual[: coincidencia.start()] + str(numero)
+    return f"{version_actual}-2"
+
+
+class CrearNuevaVersion:
+    """RF-34 paso 2: la vía prescrita para modificar una versión publicada —
+    clona su configuración completa (dimensiones, niveles, preguntas) en una
+    versión nueva, sin publicar, lista para editarse."""
+
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(self, modelo_id: str) -> ModeloMadurez:
+        origen = await self._modelos.obtener_por_id(modelo_id)
+        if origen is None:
+            raise ModeloNoEncontrado()
+
+        nueva_version = _siguiente_version(origen.version)
+        while await self._modelos.obtener_por_version(nueva_version) is not None:
+            nueva_version = _siguiente_version(nueva_version)
+
+        clon = ModeloMadurez(
+            id=None,
+            version=nueva_version,
+            nombre=origen.nombre,
+            descripcion=origen.descripcion,
+            escala_min=origen.escala_min,
+            escala_max=origen.escala_max,
+            dimensiones=[
+                Dimension(
+                    codigo=d.codigo,
+                    nombre=d.nombre,
+                    descripcion=d.descripcion,
+                    peso=d.peso,
+                    orden=d.orden,
+                )
+                for d in origen.dimensiones
+            ],
+            niveles=[
+                Nivel(
+                    nivel=n.nivel,
+                    nombre=n.nombre,
+                    descripcion=n.descripcion,
+                    umbral_min=n.umbral_min,
+                    umbral_max=n.umbral_max,
+                )
+                for n in origen.niveles
+            ],
+            preguntas=[
+                Pregunta(
+                    codigo=p.codigo,
+                    dimension_codigo=p.dimension_codigo,
+                    enunciado=p.enunciado,
+                    tipo=p.tipo,
+                    obligatoria=p.obligatoria,
+                    peso=p.peso,
+                    en_demo=p.en_demo,
+                    orden=p.orden,
+                    ayuda=p.ayuda,
+                    opciones=[
+                        OpcionPregunta(
+                            codigo=o.codigo, etiqueta=o.etiqueta, valor=o.valor
+                        )
+                        for o in p.opciones
+                    ],
+                    condicion=(
+                        CondicionActivacion(
+                            pregunta_codigo=p.condicion.pregunta_codigo,
+                            operador=p.condicion.operador,
+                            valor=p.condicion.valor,
+                        )
+                        if p.condicion
+                        else None
+                    ),
+                )
+                for p in origen.preguntas
+            ],
+        )
+        return await self._modelos.guardar(clon)

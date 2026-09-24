@@ -9,10 +9,13 @@ from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_caso_uso_agregar_pregunta,
                                   obtener_caso_uso_consultar_modelo,
                                   obtener_caso_uso_crear_modelo_madurez,
+                                  obtener_caso_uso_crear_nueva_version,
                                   obtener_caso_uso_editar_dimension,
                                   obtener_caso_uso_editar_nivel,
                                   obtener_caso_uso_editar_pregunta,
                                   obtener_caso_uso_listar_modelos,
+                                  obtener_caso_uso_obtener_version_vigente,
+                                  obtener_caso_uso_publicar_modelo,
                                   obtener_caso_uso_quitar_dimension,
                                   obtener_caso_uso_quitar_nivel,
                                   obtener_caso_uso_quitar_pregunta,
@@ -26,9 +29,9 @@ from src.api.validadores_comunes import (descripcion_opcional, entero_positivo,
                                          texto_opcional_no_vacio)
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     AgregarDimension, AgregarNivel, AgregarPregunta, ConsultarModelo,
-    CrearModeloMadurez, EditarDimension, EditarNivel, EditarPregunta,
-    ListarModelos, ModeloNoEncontrado, QuitarDimension, QuitarNivel,
-    QuitarPregunta, VersionDuplicada)
+    CrearModeloMadurez, CrearNuevaVersion, EditarDimension, EditarNivel,
+    EditarPregunta, ListarModelos, ModeloNoEncontrado, ObtenerVersionVigente,
+    Publicar, QuitarDimension, QuitarNivel, QuitarPregunta, VersionDuplicada)
 
 TipoPregunta = Literal[
     "seleccion_unica", "seleccion_multiple", "escala", "numerica", "texto_libre"
@@ -416,6 +419,20 @@ async def crear_modelo(
     return _a_response(modelo)
 
 
+@router.get("/vigente", response_model=ModeloMadurezResponse)
+async def obtener_version_vigente(
+    caso_uso: ObtenerVersionVigente = Depends(obtener_caso_uso_obtener_version_vigente),
+    usuario_id: str = Depends(requiere_rol("administrador")),
+):
+    try:
+        modelo = await caso_uso.ejecutar()
+    except ModeloNoEncontrado:
+        raise HTTPException(
+            status_code=404, detail="No hay ninguna versión publicada del modelo"
+        )
+    return _a_response(modelo)
+
+
 @router.get("/{modelo_id}", response_model=ModeloMadurezResponse)
 async def consultar_modelo(
     modelo_id: str,
@@ -737,5 +754,68 @@ async def quitar_nivel(
         modelo_id,
         "actualizar",
         valores_nuevos={"nivel_quitado": numero_nivel},
+    )
+    return _a_response(modelo)
+
+
+@router.post(
+    "/{modelo_id}/publicar",
+    response_model=ModeloMadurezResponse,
+    summary="Publicar una versión del modelo de madurez",
+    description="Exclusivo del administrador. Valida R-02, R-03 y R-04 "
+    "(pesos de dimensiones, pesos de preguntas y cobertura de la rúbrica) "
+    "antes de dejar la versión vigente e inmutable (RF-33/RF-34).",
+)
+async def publicar_modelo(
+    modelo_id: str,
+    caso_uso: Publicar = Depends(obtener_caso_uso_publicar_modelo),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        modelo = await caso_uso.ejecutar(modelo_id, usuario_actual_id)
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_nuevos={"publicado": True, "version": modelo.version},
+    )
+    return _a_response(modelo)
+
+
+@router.post(
+    "/{modelo_id}/nueva-version",
+    response_model=ModeloMadurezResponse,
+    status_code=201,
+    summary="Crear una nueva versión a partir de una existente",
+    description="Exclusivo del administrador. Vía prescrita por RF-34 para "
+    "modificar una versión publicada: clona dimensiones, niveles y preguntas "
+    "en una versión nueva sin publicar, lista para editarse.",
+)
+async def crear_nueva_version(
+    modelo_id: str,
+    caso_uso: CrearNuevaVersion = Depends(obtener_caso_uso_crear_nueva_version),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        modelo = await caso_uso.ejecutar(modelo_id)
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo.id,
+        "crear",
+        valores_nuevos={"version": modelo.version, "version_origen": modelo_id},
     )
     return _a_response(modelo)

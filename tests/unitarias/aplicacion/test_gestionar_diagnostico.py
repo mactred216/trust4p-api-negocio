@@ -4,13 +4,14 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
-    AccesoNoAutorizado, ConsultarDiagnostico, DiagnosticoEnCursoExistente,
-    DiagnosticoNoEncontrado, GuardarRespuesta, IniciarDiagnostico,
-    ListarDiagnosticosDeEmpresa, NoHayVersionVigente,
+    AccesoNoAutorizado, CompletarDiagnostico, ConsultarDiagnostico,
+    DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado, GuardarRespuesta,
+    IniciarDiagnostico, ListarDiagnosticosDeEmpresa, NoHayVersionVigente,
     ObtenerDiagnosticoEnCurso)
 from src.dominio.entidades.diagnostico import Diagnostico
 from src.dominio.entidades.empresa import Empresa, Sector
-from src.dominio.entidades.modelo_madurez import ModeloMadurez, Pregunta
+from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
+                                                  ModeloMadurez, Pregunta)
 from src.dominio.entidades.usuario import Rol, Usuario
 
 
@@ -283,3 +284,133 @@ async def test_listar_diagnosticos_de_empresa():
 
     assert len(resultado) == 1
     repo_diagnostico.listar_por_empresa.assert_called_once_with("emp-1")
+
+
+def crear_modelo_con_obligatoria_y_opcional():
+    """RF-10: el avance solo debe contar preguntas obligatorias aplicables;
+    responder la opcional no debe mover el porcentaje."""
+    modelo = crear_modelo_prueba()
+    modelo.preguntas.append(
+        Pregunta(
+            codigo="p2",
+            dimension_codigo="innovacion",
+            enunciado="¿Comentario opcional?",
+            tipo="texto_libre",
+            obligatoria=False,
+            peso=Decimal("1"),
+            en_demo=False,
+            orden=2,
+        )
+    )
+    return modelo
+
+
+@pytest.mark.asyncio
+async def test_guardar_respuesta_de_pregunta_opcional_no_mueve_el_avance():
+    diagnostico = crear_diagnostico_prueba()
+    modelo = crear_modelo_con_obligatoria_y_opcional()
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba()
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = modelo
+
+    caso_uso = GuardarRespuesta(repo_diagnostico, repo_usuario, repo_modelo)
+    resultado = await caso_uso.ejecutar(
+        "user-1", "diag-1", pregunta_codigo="p2", texto="algo"
+    )
+
+    assert resultado.porcentaje_avance == 0
+
+
+@pytest.mark.asyncio
+async def test_guardar_respuesta_ignora_preguntas_bloqueadas_por_condicion():
+    """RF-08: una pregunta obligatoria bloqueada por una condición no cumplida
+    no debe contar en el denominador del avance."""
+    diagnostico = crear_diagnostico_prueba()
+    modelo = crear_modelo_prueba()
+    modelo.preguntas.append(
+        Pregunta(
+            codigo="p2",
+            dimension_codigo="innovacion",
+            enunciado="¿Solo si p1 es alta?",
+            tipo="texto_libre",
+            obligatoria=True,
+            peso=Decimal("1"),
+            en_demo=False,
+            orden=2,
+            condicion=CondicionActivacion(
+                pregunta_codigo="p1", operador="igual", valor="alta"
+            ),
+        )
+    )
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba()
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = modelo
+
+    caso_uso = GuardarRespuesta(repo_diagnostico, repo_usuario, repo_modelo)
+    resultado = await caso_uso.ejecutar(
+        "user-1", "diag-1", pregunta_codigo="p1", opcion_codigo="baja"
+    )
+
+    assert resultado.porcentaje_avance == 100
+
+
+@pytest.mark.asyncio
+async def test_completar_diagnostico():
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.porcentaje_avance = 100
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba()
+
+    caso_uso = CompletarDiagnostico(repo_diagnostico, repo_usuario)
+    resultado = await caso_uso.ejecutar("user-1", "diag-1")
+
+    assert resultado.estado == "completado"
+    repo_diagnostico.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_completar_diagnostico_incompleto_falla():
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.porcentaje_avance = 50
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba()
+
+    caso_uso = CompletarDiagnostico(repo_diagnostico, repo_usuario)
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("user-1", "diag-1")
+    repo_diagnostico.actualizar.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_completar_diagnostico_inexistente_falla():
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = None
+    repo_usuario = AsyncMock()
+
+    caso_uso = CompletarDiagnostico(repo_diagnostico, repo_usuario)
+    with pytest.raises(DiagnosticoNoEncontrado):
+        await caso_uso.ejecutar("user-1", "no-existe")
+
+
+@pytest.mark.asyncio
+async def test_completar_diagnostico_de_otra_empresa_falla():
+    diagnostico = crear_diagnostico_prueba(empresa_id="emp-otra")
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba(empresa_id="emp-1")
+
+    caso_uso = CompletarDiagnostico(repo_diagnostico, repo_usuario)
+    with pytest.raises(AccesoNoAutorizado):
+        await caso_uso.ejecutar("user-1", "diag-1")
+    repo_diagnostico.actualizar.assert_not_called()

@@ -5,9 +5,10 @@ import pytest
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     AgregarDimension, AgregarNivel, AgregarPregunta, ConsultarModelo,
-    CrearModeloMadurez, CrearNuevaVersion, EditarDimension, EditarNivel,
-    EditarPregunta, ListarModelos, ModeloNoEncontrado, ObtenerVersionVigente,
-    Publicar, QuitarDimension, QuitarNivel, QuitarPregunta, VersionDuplicada)
+    CrearModeloMadurez, CrearNuevaVersion, DesactivarPregunta, EditarDimension,
+    EditarNivel, EditarPregunta, ListarModelos, ModeloNoEncontrado,
+    ObtenerVersionVigente, Publicar, QuitarDimension, QuitarNivel,
+    ReactivarPregunta, VersionDuplicada)
 from src.dominio.entidades.modelo_madurez import (Dimension, ModeloMadurez,
                                                   Nivel, Pregunta)
 
@@ -238,7 +239,7 @@ async def test_editar_pregunta():
 
 
 @pytest.mark.asyncio
-async def test_quitar_pregunta():
+async def test_desactivar_pregunta():
     modelo = crear_modelo_con_dimension()
     modelo.agregar_pregunta(
         Pregunta(
@@ -255,10 +256,37 @@ async def test_quitar_pregunta():
     repo = AsyncMock()
     repo.obtener_por_id.return_value = modelo
 
-    caso_uso = QuitarPregunta(repo)
+    caso_uso = DesactivarPregunta(repo)
     resultado = await caso_uso.ejecutar("modelo-1", "p1")
 
-    assert resultado.preguntas == []
+    assert resultado.preguntas[0].activo is False
+    assert len(resultado.preguntas) == 1
+    repo.actualizar.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_reactivar_pregunta():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(
+        Pregunta(
+            codigo="p1",
+            dimension_codigo="innovacion",
+            enunciado="¿Invierte en I+D?",
+            tipo="escala",
+            obligatoria=True,
+            peso=Decimal("1"),
+            en_demo=False,
+            orden=1,
+            activo=False,
+        )
+    )
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = modelo
+
+    caso_uso = ReactivarPregunta(repo)
+    resultado = await caso_uso.ejecutar("modelo-1", "p1")
+
+    assert resultado.preguntas[0].activo is True
     repo.actualizar.assert_called_once()
 
 

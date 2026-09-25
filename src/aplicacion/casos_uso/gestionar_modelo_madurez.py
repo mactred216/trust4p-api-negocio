@@ -191,6 +191,7 @@ class EditarPregunta:
         peso: Optional[Decimal] = None,
         en_demo: Optional[bool] = None,
         orden: Optional[int] = None,
+        opciones: Optional[list[dict]] = None,
     ) -> ModeloMadurez:
         modelo = await self._modelos.obtener_por_id(modelo_id)
         if modelo is None:
@@ -206,12 +207,20 @@ class EditarPregunta:
             peso=peso,
             en_demo=en_demo,
             orden=orden,
+            opciones=(
+                [OpcionPregunta(**o) for o in opciones]
+                if opciones is not None
+                else None
+            ),
         )
         await self._modelos.actualizar(modelo)
         return modelo
 
 
-class QuitarPregunta:
+class DesactivarPregunta:
+    """RF-28: se marca inactiva sin eliminarla del histórico (en vez de un
+    borrado físico)."""
+
     def __init__(self, repo: RepositorioModeloMadurez):
         self._modelos = repo
 
@@ -220,7 +229,21 @@ class QuitarPregunta:
         if modelo is None:
             raise ModeloNoEncontrado()
 
-        modelo.quitar_pregunta(codigo)
+        modelo.desactivar_pregunta(codigo)
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class ReactivarPregunta:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(self, modelo_id: str, codigo: str) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.reactivar_pregunta(codigo)
         await self._modelos.actualizar(modelo)
         return modelo
 

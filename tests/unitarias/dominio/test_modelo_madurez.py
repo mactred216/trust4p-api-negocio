@@ -4,7 +4,8 @@ import pytest
 
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
                                                   Dimension, ModeloMadurez,
-                                                  Nivel, Pregunta)
+                                                  Nivel, OpcionPregunta,
+                                                  Pregunta)
 
 
 def crear_modelo_prueba(publicado: bool = False) -> ModeloMadurez:
@@ -157,14 +158,68 @@ def test_editar_pregunta_inexistente_falla():
         modelo.editar_pregunta("no-existe", peso=Decimal("0.5"))
 
 
-def test_quitar_pregunta():
+def test_editar_pregunta_reemplaza_opciones():
     modelo = crear_modelo_con_dimension()
     modelo.agregar_pregunta(crear_pregunta())
-    modelo.quitar_pregunta("p1")
-    assert modelo.preguntas == []
+    nuevas_opciones = [OpcionPregunta(codigo="si", etiqueta="Sí", valor=Decimal("1"))]
+    modelo.editar_pregunta("p1", opciones=nuevas_opciones)
+    assert modelo.preguntas[0].opciones == nuevas_opciones
 
 
-def test_quitar_pregunta_referenciada_por_condicion_falla():
+# RF-28 paso 3: pregunta obligatoria de tipo cerrado exige al menos una opción
+def test_agregar_pregunta_obligatoria_cerrada_sin_opciones_falla():
+    modelo = crear_modelo_con_dimension()
+    pregunta = crear_pregunta()
+    pregunta.tipo = "seleccion_unica"
+    pregunta.obligatoria = True
+    pregunta.opciones = []
+    with pytest.raises(ValueError):
+        modelo.agregar_pregunta(pregunta)
+
+
+def test_agregar_pregunta_obligatoria_cerrada_con_opciones_no_lanza():
+    modelo = crear_modelo_con_dimension()
+    pregunta = crear_pregunta()
+    pregunta.tipo = "seleccion_unica"
+    pregunta.obligatoria = True
+    pregunta.opciones = [OpcionPregunta(codigo="si", etiqueta="Sí", valor=Decimal("1"))]
+    modelo.agregar_pregunta(pregunta)  # no debe lanzar
+
+
+def test_agregar_pregunta_no_obligatoria_cerrada_sin_opciones_no_lanza():
+    modelo = crear_modelo_con_dimension()
+    pregunta = crear_pregunta()
+    pregunta.tipo = "seleccion_unica"
+    pregunta.obligatoria = False
+    pregunta.opciones = []
+    modelo.agregar_pregunta(pregunta)  # no debe lanzar
+
+
+def test_editar_pregunta_a_obligatoria_cerrada_sin_opciones_falla():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(crear_pregunta())  # tipo escala, sin opciones
+    with pytest.raises(ValueError):
+        modelo.editar_pregunta("p1", tipo="seleccion_unica", obligatoria=True)
+
+
+# RF-28: desactivar/reactivar (baja lógica, no eliminación física)
+def test_desactivar_pregunta():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(crear_pregunta())
+    modelo.desactivar_pregunta("p1")
+    assert modelo.preguntas[0].activo is False
+    assert len(modelo.preguntas) == 1  # sigue en el histórico
+
+
+def test_desactivar_pregunta_ya_inactiva_falla():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(crear_pregunta())
+    modelo.desactivar_pregunta("p1")
+    with pytest.raises(ValueError):
+        modelo.desactivar_pregunta("p1")
+
+
+def test_desactivar_pregunta_referenciada_por_condicion_activa_falla():
     modelo = crear_modelo_con_dimension()
     modelo.agregar_pregunta(crear_pregunta("p1"))
     pregunta_condicionada = crear_pregunta("p2")
@@ -173,7 +228,22 @@ def test_quitar_pregunta_referenciada_por_condicion_falla():
     )
     modelo.agregar_pregunta(pregunta_condicionada)
     with pytest.raises(ValueError):
-        modelo.quitar_pregunta("p1")
+        modelo.desactivar_pregunta("p1")
+
+
+def test_reactivar_pregunta():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(crear_pregunta())
+    modelo.desactivar_pregunta("p1")
+    modelo.reactivar_pregunta("p1")
+    assert modelo.preguntas[0].activo is True
+
+
+def test_reactivar_pregunta_ya_activa_falla():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(crear_pregunta())
+    with pytest.raises(ValueError):
+        modelo.reactivar_pregunta("p1")
 
 
 # R-03: la suma de los pesos de las preguntas de cada dimensión debe totalizar 1 (RF-31)
@@ -193,6 +263,22 @@ def test_validar_pesos_preguntas_que_no_suman_uno_falla():
 
 def test_validar_pesos_dimension_sin_preguntas_falla():
     modelo = crear_modelo_con_dimension()
+    with pytest.raises(ValueError):
+        modelo.validar_pesos_preguntas()
+
+
+def test_validar_pesos_preguntas_ignora_preguntas_inactivas():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(crear_pregunta("p1", peso="1"))
+    modelo.agregar_pregunta(crear_pregunta("p2", peso="0.5"))
+    modelo.desactivar_pregunta("p2")
+    modelo.validar_pesos_preguntas()  # p2 inactiva no cuenta; p1 sola ya suma 1
+
+
+def test_validar_pesos_preguntas_dimension_solo_con_preguntas_inactivas_falla():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_pregunta(crear_pregunta("p1", peso="1"))
+    modelo.desactivar_pregunta("p1")
     with pytest.raises(ValueError):
         modelo.validar_pesos_preguntas()
 

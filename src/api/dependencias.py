@@ -398,3 +398,70 @@ def obtener_caso_uso_obtener_version_vigente(
     repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
 ) -> ObtenerVersionVigente:
     return ObtenerVersionVigente(repo)
+
+
+from src.aplicacion.casos_uso.gestionar_diagnostico import (
+    ConsultarDiagnostico, GuardarRespuesta, IniciarDiagnostico,
+    ListarDiagnosticosDeEmpresa, ObtenerDiagnosticoEnCurso)
+from src.infraestructura.persistencia.repositorio_mongo_diagnostico import \
+    RepositorioMongoDiagnostico
+
+
+def obtener_repositorio_diagnostico(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoDiagnostico:
+    return RepositorioMongoDiagnostico(db)
+
+
+def obtener_caso_uso_iniciar_diagnostico(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_modelo_madurez: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
+) -> IniciarDiagnostico:
+    return IniciarDiagnostico(
+        repo_diagnostico, repo_usuario, repo_empresa, repo_modelo_madurez
+    )
+
+
+def obtener_caso_uso_guardar_respuesta(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_modelo_madurez: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
+) -> GuardarRespuesta:
+    return GuardarRespuesta(repo_diagnostico, repo_usuario, repo_modelo_madurez)
+
+
+def obtener_caso_uso_diagnostico_en_curso(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> ObtenerDiagnosticoEnCurso:
+    return ObtenerDiagnosticoEnCurso(repo_diagnostico, repo_usuario)
+
+
+def obtener_caso_uso_consultar_diagnostico(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> ConsultarDiagnostico:
+    return ConsultarDiagnostico(repo_diagnostico, repo_usuario)
+
+
+def obtener_caso_uso_listar_diagnosticos_empresa(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> ListarDiagnosticosDeEmpresa:
+    return ListarDiagnosticosDeEmpresa(repo_diagnostico, repo_usuario)

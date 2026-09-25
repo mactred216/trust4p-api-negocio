@@ -116,6 +116,7 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                         if p.get("condicion")
                         else None
                     ),
+                    activo=p.get("activo", True),
                 )
                 for p in doc.get("preguntas", [])
             ],
@@ -180,6 +181,7 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                         if p.condicion
                         else None
                     ),
+                    "activo": p.activo,
                 }
                 for p in modelo.preguntas
             ],

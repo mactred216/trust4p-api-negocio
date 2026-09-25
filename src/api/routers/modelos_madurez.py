@@ -10,6 +10,7 @@ from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_caso_uso_consultar_modelo,
                                   obtener_caso_uso_crear_modelo_madurez,
                                   obtener_caso_uso_crear_nueva_version,
+                                  obtener_caso_uso_desactivar_pregunta,
                                   obtener_caso_uso_editar_dimension,
                                   obtener_caso_uso_editar_nivel,
                                   obtener_caso_uso_editar_pregunta,
@@ -18,7 +19,7 @@ from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_caso_uso_publicar_modelo,
                                   obtener_caso_uso_quitar_dimension,
                                   obtener_caso_uso_quitar_nivel,
-                                  obtener_caso_uso_quitar_pregunta,
+                                  obtener_caso_uso_reactivar_pregunta,
                                   obtener_repositorio_auditoria)
 from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
@@ -29,9 +30,10 @@ from src.api.validadores_comunes import (descripcion_opcional, entero_positivo,
                                          texto_opcional_no_vacio)
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     AgregarDimension, AgregarNivel, AgregarPregunta, ConsultarModelo,
-    CrearModeloMadurez, CrearNuevaVersion, EditarDimension, EditarNivel,
-    EditarPregunta, ListarModelos, ModeloNoEncontrado, ObtenerVersionVigente,
-    Publicar, QuitarDimension, QuitarNivel, QuitarPregunta, VersionDuplicada)
+    CrearModeloMadurez, CrearNuevaVersion, DesactivarPregunta, EditarDimension,
+    EditarNivel, EditarPregunta, ListarModelos, ModeloNoEncontrado,
+    ObtenerVersionVigente, Publicar, QuitarDimension, QuitarNivel,
+    ReactivarPregunta, VersionDuplicada)
 
 TipoPregunta = Literal[
     "seleccion_unica", "seleccion_multiple", "escala", "numerica", "texto_libre"
@@ -73,6 +75,7 @@ class PreguntaResponse(BaseModel):
     orden: int
     opciones: list[OpcionResponse]
     condicion: Optional[CondicionResponse]
+    activo: bool
 
 
 class NivelResponse(BaseModel):
@@ -247,6 +250,19 @@ class PreguntaRequest(BaseModel):
     def _orden_valido(cls, v: int) -> int:
         return entero_positivo(v)
 
+    @model_validator(mode="after")
+    def _opciones_si_obligatoria_cerrada(self) -> "PreguntaRequest":
+        if (
+            self.obligatoria
+            and self.tipo in ("seleccion_unica", "seleccion_multiple")
+            and not self.opciones
+        ):
+            raise ValueError(
+                "Una pregunta obligatoria de tipo selección debe tener al menos "
+                "una opción de respuesta"
+            )
+        return self
+
 
 class EditarPreguntaRequest(BaseModel):
     dimension_codigo: Optional[str] = None
@@ -257,6 +273,7 @@ class EditarPreguntaRequest(BaseModel):
     peso: Optional[Decimal] = None
     en_demo: Optional[bool] = None
     orden: Optional[int] = None
+    opciones: Optional[list[OpcionRequest]] = None
 
     @field_validator("dimension_codigo", "enunciado")
     @classmethod
@@ -362,6 +379,7 @@ def _a_response(modelo) -> ModeloMadurezResponse:
                     if p.condicion
                     else None
                 ),
+                activo=p.activo,
             )
             for p in modelo.preguntas
         ],
@@ -612,6 +630,11 @@ async def editar_pregunta(
             peso=datos.peso,
             en_demo=datos.en_demo,
             orden=datos.orden,
+            opciones=(
+                [o.model_dump() for o in datos.opciones]
+                if datos.opciones is not None
+                else None
+            ),
         )
     except ModeloNoEncontrado:
         raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
@@ -629,11 +652,16 @@ async def editar_pregunta(
     return _a_response(modelo)
 
 
-@router.delete("/{modelo_id}/preguntas/{codigo}", response_model=ModeloMadurezResponse)
-async def quitar_pregunta(
+@router.post(
+    "/{modelo_id}/preguntas/{codigo}/desactivar",
+    response_model=ModeloMadurezResponse,
+    summary="Desactivar una pregunta del banco",
+    description="RF-28: la marca inactiva sin eliminarla del histórico.",
+)
+async def desactivar_pregunta(
     modelo_id: str,
     codigo: str,
-    caso_uso: QuitarPregunta = Depends(obtener_caso_uso_quitar_pregunta),
+    caso_uso: DesactivarPregunta = Depends(obtener_caso_uso_desactivar_pregunta),
     usuario_actual_id: str = Depends(requiere_rol("administrador")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
@@ -650,7 +678,35 @@ async def quitar_pregunta(
         "modelos_madurez",
         modelo_id,
         "actualizar",
-        valores_nuevos={"pregunta_quitada": codigo},
+        valores_nuevos={"pregunta_desactivada": codigo},
+    )
+    return _a_response(modelo)
+
+
+@router.post(
+    "/{modelo_id}/preguntas/{codigo}/reactivar", response_model=ModeloMadurezResponse
+)
+async def reactivar_pregunta(
+    modelo_id: str,
+    codigo: str,
+    caso_uso: ReactivarPregunta = Depends(obtener_caso_uso_reactivar_pregunta),
+    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        modelo = await caso_uso.ejecutar(modelo_id, codigo)
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_nuevos={"pregunta_reactivada": codigo},
     )
     return _a_response(modelo)
 

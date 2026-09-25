@@ -36,6 +36,9 @@ class Nivel:
     umbral_max: Decimal
 
 
+TIPOS_CON_OPCIONES = {"seleccion_unica", "seleccion_multiple"}
+
+
 @dataclass
 class Pregunta:
     codigo: str
@@ -49,6 +52,7 @@ class Pregunta:
     ayuda: Optional[str] = None
     opciones: list[OpcionPregunta] = field(default_factory=list)
     condicion: Optional[CondicionActivacion] = None
+    activo: bool = True
 
 
 @dataclass
@@ -64,7 +68,9 @@ class ModeloMadurez:
     publicado_por: Optional[str] = None
     dimensiones: list[Dimension] = field(default_factory=list)
     niveles: list[Nivel] = field(default_factory=list)  # RF-32, HU-033
-    preguntas: list[Pregunta] = field(default_factory=list)  # RF-29/RF-31, HU-032
+    preguntas: list[Pregunta] = field(
+        default_factory=list
+    )  # RF-28/RF-31, HU-029/HU-032
     creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def agregar_dimension(self, dimension: Dimension) -> None:
@@ -126,6 +132,7 @@ class ModeloMadurez:
                 f"La condición de activación referencia una pregunta inexistente: "
                 f"'{pregunta.condicion.pregunta_codigo}'"
             )
+        self._validar_opciones_de_pregunta(pregunta)
         self.preguntas.append(pregunta)
 
     def editar_pregunta(
@@ -139,6 +146,7 @@ class ModeloMadurez:
         peso: Optional[Decimal] = None,
         en_demo: Optional[bool] = None,
         orden: Optional[int] = None,
+        opciones: Optional[list[OpcionPregunta]] = None,
     ) -> None:
         self._validar_editable()
         pregunta = self._buscar_pregunta(codigo)
@@ -162,29 +170,60 @@ class ModeloMadurez:
             pregunta.en_demo = en_demo
         if orden is not None:
             pregunta.orden = orden
+        if opciones is not None:
+            pregunta.opciones = opciones
+        self._validar_opciones_de_pregunta(pregunta)
 
-    def quitar_pregunta(self, codigo: str) -> None:
+    def desactivar_pregunta(self, codigo: str) -> None:
+        """RF-28: se marca inactiva sin eliminarla del histórico."""
         self._validar_editable()
         pregunta = self._buscar_pregunta(codigo)
+        if not pregunta.activo:
+            raise ValueError(f"La pregunta '{codigo}' ya se encuentra inactiva")
         if any(
-            p.condicion is not None and p.condicion.pregunta_codigo == codigo
+            p.activo
+            and p.condicion is not None
+            and p.condicion.pregunta_codigo == codigo
             for p in self.preguntas
         ):
             raise ValueError(
-                "No se puede quitar: otra pregunta tiene una condición de activación "
-                "que depende de esta"
+                "No se puede desactivar: otra pregunta activa tiene una condición "
+                "de activación que depende de esta"
             )
-        self.preguntas.remove(pregunta)
+        pregunta.activo = False
+
+    def reactivar_pregunta(self, codigo: str) -> None:
+        self._validar_editable()
+        pregunta = self._buscar_pregunta(codigo)
+        if pregunta.activo:
+            raise ValueError(f"La pregunta '{codigo}' ya se encuentra activa")
+        pregunta.activo = True
+
+    def _validar_opciones_de_pregunta(self, pregunta: Pregunta) -> None:
+        """RF-28 paso 3: toda pregunta obligatoria de tipo cerrado debe tener
+        al menos una opción de respuesta configurada."""
+        if (
+            pregunta.obligatoria
+            and pregunta.tipo in TIPOS_CON_OPCIONES
+            and not pregunta.opciones
+        ):
+            raise ValueError(
+                f"La pregunta '{pregunta.codigo}' es obligatoria y de tipo "
+                f"'{pregunta.tipo}': debe tener al menos una opción de respuesta"
+            )
 
     def validar_pesos_preguntas(self) -> None:
-        """R-03: la suma de los pesos de las preguntas de cada dimensión debe totalizar 1."""
+        """R-03: la suma de los pesos de las preguntas activas de cada dimensión
+        debe totalizar 1."""
         for dimension in self.dimensiones:
             preguntas_dimension = [
-                p for p in self.preguntas if p.dimension_codigo == dimension.codigo
+                p
+                for p in self.preguntas
+                if p.dimension_codigo == dimension.codigo and p.activo
             ]
             if not preguntas_dimension:
                 raise ValueError(
-                    f"La dimensión '{dimension.codigo}' no tiene preguntas asociadas"
+                    f"La dimensión '{dimension.codigo}' no tiene preguntas activas asociadas"
                 )
             suma = sum((p.peso for p in preguntas_dimension), Decimal("0"))
             if suma != Decimal("1"):

@@ -62,6 +62,10 @@ def crear_modelo_prueba() -> ModeloMadurez:
                 peso=Decimal("1"),
                 en_demo=False,
                 orden=1,
+                opciones=[
+                    OpcionPregunta(codigo="si", etiqueta="Sí", valor=Decimal("1")),
+                    OpcionPregunta(codigo="no", etiqueta="No", valor=Decimal("0")),
+                ],
                 condicion=CondicionActivacion(
                     pregunta_codigo="p1", operador="igual", valor="alta"
                 ),
@@ -178,3 +182,20 @@ async def test_obtener_vigente_sin_ninguna_publicada_devuelve_none(db):
     await repo.guardar(borrador)
 
     assert await repo.obtener_vigente() is None
+
+
+@pytest.mark.asyncio
+async def test_desactivar_pregunta_persiste_y_se_recupera(db):
+    """HU-029: activo es un campo nuevo en Pregunta; confirma que el
+    round-trip contra Mongo real lo conserva."""
+    repo = RepositorioMongoModeloMadurez(db)
+    modelo = await repo.guardar(crear_modelo_prueba())
+
+    # p2 depende de la condición de p1, así que se desactiva p2 (no p1)
+    modelo.desactivar_pregunta("p2")
+    await repo.actualizar(modelo)
+
+    recuperado = await repo.obtener_por_id(modelo.id)
+    preguntas_por_codigo = {p.codigo: p for p in recuperado.preguntas}
+    assert preguntas_por_codigo["p2"].activo is False
+    assert preguntas_por_codigo["p1"].activo is True

@@ -291,9 +291,9 @@ def obtener_caso_uso_consultar_auditoria(
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     AgregarDimension, AgregarNivel, AgregarPregunta, ConsultarModelo,
-    CrearModeloMadurez, CrearNuevaVersion, EditarDimension, EditarNivel,
-    EditarPregunta, ListarModelos, ObtenerVersionVigente, Publicar,
-    QuitarDimension, QuitarNivel, QuitarPregunta)
+    CrearModeloMadurez, CrearNuevaVersion, DesactivarPregunta, EditarDimension,
+    EditarNivel, EditarPregunta, ListarModelos, ObtenerVersionVigente,
+    Publicar, QuitarDimension, QuitarNivel, ReactivarPregunta)
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
     RepositorioMongoModeloMadurez
 
@@ -352,10 +352,16 @@ def obtener_caso_uso_editar_pregunta(
     return EditarPregunta(repo)
 
 
-def obtener_caso_uso_quitar_pregunta(
+def obtener_caso_uso_desactivar_pregunta(
     repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
-) -> QuitarPregunta:
-    return QuitarPregunta(repo)
+) -> DesactivarPregunta:
+    return DesactivarPregunta(repo)
+
+
+def obtener_caso_uso_reactivar_pregunta(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> ReactivarPregunta:
+    return ReactivarPregunta(repo)
 
 
 def obtener_caso_uso_agregar_nivel(

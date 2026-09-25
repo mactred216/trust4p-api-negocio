@@ -7,7 +7,7 @@ from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, CompletarDiagnostico, ConsultarDiagnostico,
     DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado, GuardarRespuesta,
     IniciarDiagnostico, ListarDiagnosticosDeEmpresa, NoHayVersionVigente,
-    ObtenerDiagnosticoEnCurso)
+    ObtenerCuestionario, ObtenerDiagnosticoEnCurso)
 from src.dominio.entidades.diagnostico import Diagnostico
 from src.dominio.entidades.empresa import Empresa, Sector
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
@@ -414,3 +414,63 @@ async def test_completar_diagnostico_de_otra_empresa_falla():
     with pytest.raises(AccesoNoAutorizado):
         await caso_uso.ejecutar("user-1", "diag-1")
     repo_diagnostico.actualizar.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_obtener_cuestionario():
+    diagnostico = crear_diagnostico_prueba()
+    modelo = crear_modelo_prueba()
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba()
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = modelo
+
+    caso_uso = ObtenerCuestionario(repo_diagnostico, repo_usuario, repo_modelo)
+    resultado = await caso_uso.ejecutar("user-1", "diag-1")
+
+    assert resultado.version == "v1"
+    repo_modelo.obtener_por_version.assert_called_once_with("v1")
+
+
+@pytest.mark.asyncio
+async def test_obtener_cuestionario_diagnostico_inexistente_falla():
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = None
+    repo_usuario = AsyncMock()
+    repo_modelo = AsyncMock()
+
+    caso_uso = ObtenerCuestionario(repo_diagnostico, repo_usuario, repo_modelo)
+    with pytest.raises(DiagnosticoNoEncontrado):
+        await caso_uso.ejecutar("user-1", "no-existe")
+
+
+@pytest.mark.asyncio
+async def test_obtener_cuestionario_de_otra_empresa_falla():
+    diagnostico = crear_diagnostico_prueba(empresa_id="emp-otra")
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba(empresa_id="emp-1")
+    repo_modelo = AsyncMock()
+
+    caso_uso = ObtenerCuestionario(repo_diagnostico, repo_usuario, repo_modelo)
+    with pytest.raises(AccesoNoAutorizado):
+        await caso_uso.ejecutar("user-1", "diag-1")
+    repo_modelo.obtener_por_version.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_obtener_cuestionario_version_de_modelo_inexistente_falla():
+    diagnostico = crear_diagnostico_prueba()
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba()
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = None
+
+    caso_uso = ObtenerCuestionario(repo_diagnostico, repo_usuario, repo_modelo)
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("user-1", "diag-1")

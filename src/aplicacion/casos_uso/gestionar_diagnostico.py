@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Optional
 
 from src.dominio.entidades.diagnostico import Diagnostico, Respuesta
+from src.dominio.entidades.modelo_madurez import ModeloMadurez
 from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
 from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
 from src.dominio.puertos.repositorio_modelo_madurez import \
@@ -190,6 +191,38 @@ class ConsultarDiagnostico:
             raise AccesoNoAutorizado()
 
         return diagnostico
+
+
+class ObtenerCuestionario:
+    """RF-07 (HU-008): entrega la estructura del cuestionario (dimensiones y
+    preguntas activas) de la versión del modelo fijada al diagnóstico, para
+    que el representante pueda responderlo."""
+
+    def __init__(
+        self,
+        repo_diagnostico: RepositorioDiagnostico,
+        repo_usuario: RepositorioUsuario,
+        repo_modelo_madurez: RepositorioModeloMadurez,
+    ):
+        self._diagnosticos = repo_diagnostico
+        self._usuarios = repo_usuario
+        self._modelos = repo_modelo_madurez
+
+    async def ejecutar(self, usuario_id: str, diagnostico_id: str) -> ModeloMadurez:
+        diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
+        if diagnostico is None:
+            raise DiagnosticoNoEncontrado()
+
+        usuario = await self._usuarios.obtener_por_id(usuario_id)
+        if usuario is None or usuario.empresa_id != diagnostico.empresa_id:
+            raise AccesoNoAutorizado()
+
+        modelo = await self._modelos.obtener_por_version(diagnostico.modelo_version)
+        if modelo is None:
+            raise ValueError(
+                "La versión del modelo aplicada a este diagnóstico ya no existe"
+            )
+        return modelo
 
 
 class CompletarDiagnostico:

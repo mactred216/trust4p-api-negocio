@@ -7,6 +7,7 @@ from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
 from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
+from src.dominio.servicios.logica_adaptativa import preguntas_aplicables
 
 
 class DiagnosticoNoEncontrado(Exception):
@@ -129,8 +130,6 @@ class GuardarRespuesta:
                 f"versión '{diagnostico.modelo_version}'"
             )
 
-        total_activas = sum(1 for p in modelo.preguntas if p.activo)
-
         respuesta = Respuesta(
             pregunta_codigo=pregunta_codigo,
             dimension_codigo=pregunta.dimension_codigo,
@@ -138,7 +137,16 @@ class GuardarRespuesta:
             valor=valor,
             texto=texto,
         )
-        diagnostico.registrar_respuesta(respuesta, total_activas)
+
+        respuestas_tentativas = [
+            r for r in diagnostico.respuestas if r.pregunta_codigo != pregunta_codigo
+        ] + [respuesta]
+        aplicables = preguntas_aplicables(modelo.preguntas, respuestas_tentativas)
+        codigos_obligatorias_aplicables = {
+            p.codigo for p in aplicables if p.obligatoria
+        }
+
+        diagnostico.registrar_respuesta(respuesta, codigos_obligatorias_aplicables)
         await self._diagnosticos.actualizar(diagnostico)
         return diagnostico
 
@@ -181,6 +189,30 @@ class ConsultarDiagnostico:
         if usuario is None or usuario.empresa_id != diagnostico.empresa_id:
             raise AccesoNoAutorizado()
 
+        return diagnostico
+
+
+class CompletarDiagnostico:
+    """RF-07 paso 5: cierra la etapa de respuestas (borrador -> completado)
+    una vez respondidas todas las obligatorias aplicables."""
+
+    def __init__(
+        self, repo_diagnostico: RepositorioDiagnostico, repo_usuario: RepositorioUsuario
+    ):
+        self._diagnosticos = repo_diagnostico
+        self._usuarios = repo_usuario
+
+    async def ejecutar(self, usuario_id: str, diagnostico_id: str) -> Diagnostico:
+        diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
+        if diagnostico is None:
+            raise DiagnosticoNoEncontrado()
+
+        usuario = await self._usuarios.obtener_por_id(usuario_id)
+        if usuario is None or usuario.empresa_id != diagnostico.empresa_id:
+            raise AccesoNoAutorizado()
+
+        diagnostico.marcar_completado()
+        await self._diagnosticos.actualizar(diagnostico)
         return diagnostico
 
 

@@ -3,9 +3,8 @@ from decimal import Decimal
 import pytest
 
 from src.dominio.entidades.diagnostico import Diagnostico, Respuesta
-from src.infraestructura.persistencia.repositorio_mongo_diagnostico import (
-    RepositorioMongoDiagnostico,
-)
+from src.infraestructura.persistencia.repositorio_mongo_diagnostico import \
+    RepositorioMongoDiagnostico
 
 
 def crear_diagnostico_prueba(
@@ -98,13 +97,27 @@ async def test_actualizar_persiste_nueva_respuesta(db):
 
     diagnostico.registrar_respuesta(
         Respuesta(pregunta_codigo="p2", dimension_codigo="cultura", texto="Sí, mucho"),
-        total_preguntas_activas=2,
+        {"p1", "p2"},
     )
     await repo.actualizar(diagnostico)
 
     recuperado = await repo.obtener_por_id(diagnostico.id)
     assert len(recuperado.respuestas) == 2
     assert recuperado.porcentaje_avance == 100
+
+
+@pytest.mark.asyncio
+async def test_actualizar_persiste_diagnostico_completado(db):
+    repo = RepositorioMongoDiagnostico(db)
+    diagnostico = await repo.guardar(crear_diagnostico_prueba())
+    diagnostico.porcentaje_avance = 100
+    diagnostico.marcar_completado()
+
+    await repo.actualizar(diagnostico)
+
+    recuperado = await repo.obtener_por_id(diagnostico.id)
+    assert recuperado.estado == "completado"
+    assert recuperado.completado_en is not None
 
 
 @pytest.mark.asyncio

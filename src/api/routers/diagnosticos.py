@@ -5,7 +5,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator, model_validator
 
-from src.api.dependencias import (obtener_caso_uso_consultar_diagnostico,
+from src.api.dependencias import (obtener_caso_uso_completar_diagnostico,
+                                  obtener_caso_uso_consultar_diagnostico,
                                   obtener_caso_uso_diagnostico_en_curso,
                                   obtener_caso_uso_guardar_respuesta,
                                   obtener_caso_uso_iniciar_diagnostico,
@@ -13,9 +14,9 @@ from src.api.dependencias import (obtener_caso_uso_consultar_diagnostico,
 from src.api.middleware.autorizacion import requiere_rol
 from src.api.validadores_comunes import texto_no_vacio
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
-    AccesoNoAutorizado, ConsultarDiagnostico, DiagnosticoEnCursoExistente,
-    DiagnosticoNoEncontrado, GuardarRespuesta, IniciarDiagnostico,
-    ListarDiagnosticosDeEmpresa, NoHayVersionVigente,
+    AccesoNoAutorizado, CompletarDiagnostico, ConsultarDiagnostico,
+    DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado, GuardarRespuesta,
+    IniciarDiagnostico, ListarDiagnosticosDeEmpresa, NoHayVersionVigente,
     ObtenerDiagnosticoEnCurso)
 
 router = APIRouter(prefix="/diagnosticos", tags=["diagnosticos"])
@@ -204,6 +205,32 @@ async def guardar_respuesta(
             valor=datos.valor,
             texto=datos.texto,
         )
+    except DiagnosticoNoEncontrado:
+        raise HTTPException(status_code=404, detail="Diagnóstico no encontrado")
+    except AccesoNoAutorizado:
+        raise HTTPException(
+            status_code=403, detail="Este diagnóstico no pertenece a su empresa"
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _a_response(diagnostico)
+
+
+@router.post(
+    "/{diagnostico_id}/completar",
+    response_model=DiagnosticoResponse,
+    summary="Completar el diagnóstico (cerrar la captura de respuestas)",
+    description="RF-07 paso 5: pasa el diagnóstico de 'borrador' a "
+    "'completado'; exige que todas las preguntas obligatorias aplicables "
+    "ya tengan respuesta.",
+)
+async def completar_diagnostico(
+    diagnostico_id: str,
+    caso_uso: CompletarDiagnostico = Depends(obtener_caso_uso_completar_diagnostico),
+    usuario_id: str = Depends(requiere_rol("representante")),
+):
+    try:
+        diagnostico = await caso_uso.ejecutar(usuario_id, diagnostico_id)
     except DiagnosticoNoEncontrado:
         raise HTTPException(status_code=404, detail="Diagnóstico no encontrado")
     except AccesoNoAutorizado:

@@ -402,7 +402,8 @@ def obtener_caso_uso_obtener_version_vigente(
 
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     CompletarDiagnostico, ConsultarDiagnostico, GuardarRespuesta,
-    IniciarDiagnostico, ListarDiagnosticosDeEmpresa, ObtenerDiagnosticoEnCurso)
+    IniciarDiagnostico, ListarDiagnosticosDeEmpresa, ObtenerCuestionario,
+    ObtenerDiagnosticoEnCurso)
 from src.infraestructura.persistencia.repositorio_mongo_diagnostico import \
     RepositorioMongoDiagnostico
 
@@ -456,6 +457,18 @@ def obtener_caso_uso_consultar_diagnostico(
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
 ) -> ConsultarDiagnostico:
     return ConsultarDiagnostico(repo_diagnostico, repo_usuario)
+
+
+def obtener_caso_uso_obtener_cuestionario(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_modelo_madurez: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
+) -> ObtenerCuestionario:
+    return ObtenerCuestionario(repo_diagnostico, repo_usuario, repo_modelo_madurez)
 
 
 def obtener_caso_uso_completar_diagnostico(

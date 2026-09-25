@@ -10,14 +10,15 @@ from src.api.dependencias import (obtener_caso_uso_completar_diagnostico,
                                   obtener_caso_uso_diagnostico_en_curso,
                                   obtener_caso_uso_guardar_respuesta,
                                   obtener_caso_uso_iniciar_diagnostico,
-                                  obtener_caso_uso_listar_diagnosticos_empresa)
+                                  obtener_caso_uso_listar_diagnosticos_empresa,
+                                  obtener_caso_uso_obtener_cuestionario)
 from src.api.middleware.autorizacion import requiere_rol
 from src.api.validadores_comunes import texto_no_vacio
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, CompletarDiagnostico, ConsultarDiagnostico,
     DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado, GuardarRespuesta,
     IniciarDiagnostico, ListarDiagnosticosDeEmpresa, NoHayVersionVigente,
-    ObtenerDiagnosticoEnCurso)
+    ObtenerCuestionario, ObtenerDiagnosticoEnCurso)
 
 router = APIRouter(prefix="/diagnosticos", tags=["diagnosticos"])
 
@@ -65,6 +66,86 @@ class GuardarRespuestaRequest(BaseModel):
                 "Debe enviar opcion_codigo, valor o texto según el tipo de pregunta"
             )
         return self
+
+
+class OpcionPreguntaResponse(BaseModel):
+    codigo: str
+    etiqueta: str
+    valor: Decimal
+
+
+class CondicionActivacionResponse(BaseModel):
+    pregunta_codigo: str
+    operador: str
+    valor: str
+
+
+class PreguntaCuestionarioResponse(BaseModel):
+    codigo: str
+    dimension_codigo: str
+    enunciado: str
+    tipo: str
+    obligatoria: bool
+    orden: int
+    ayuda: Optional[str]
+    opciones: list[OpcionPreguntaResponse]
+    condicion: Optional[CondicionActivacionResponse]
+
+
+class DimensionCuestionarioResponse(BaseModel):
+    codigo: str
+    nombre: str
+    orden: int
+    descripcion: Optional[str]
+
+
+class CuestionarioResponse(BaseModel):
+    modelo_version: str
+    dimensiones: list[DimensionCuestionarioResponse]
+    preguntas: list[PreguntaCuestionarioResponse]
+
+
+def _cuestionario_a_response(modelo) -> CuestionarioResponse:
+    return CuestionarioResponse(
+        modelo_version=modelo.version,
+        dimensiones=[
+            DimensionCuestionarioResponse(
+                codigo=d.codigo,
+                nombre=d.nombre,
+                orden=d.orden,
+                descripcion=d.descripcion,
+            )
+            for d in modelo.dimensiones
+        ],
+        preguntas=[
+            PreguntaCuestionarioResponse(
+                codigo=p.codigo,
+                dimension_codigo=p.dimension_codigo,
+                enunciado=p.enunciado,
+                tipo=p.tipo,
+                obligatoria=p.obligatoria,
+                orden=p.orden,
+                ayuda=p.ayuda,
+                opciones=[
+                    OpcionPreguntaResponse(
+                        codigo=o.codigo, etiqueta=o.etiqueta, valor=o.valor
+                    )
+                    for o in p.opciones
+                ],
+                condicion=(
+                    CondicionActivacionResponse(
+                        pregunta_codigo=p.condicion.pregunta_codigo,
+                        operador=p.condicion.operador,
+                        valor=p.condicion.valor,
+                    )
+                    if p.condicion
+                    else None
+                ),
+            )
+            for p in modelo.preguntas
+            if p.activo
+        ],
+    )
 
 
 def _a_response(diagnostico) -> DiagnosticoResponse:
@@ -181,6 +262,31 @@ async def consultar_diagnostico(
             status_code=403, detail="Este diagnóstico no pertenece a su empresa"
         )
     return _a_response(diagnostico)
+
+
+@router.get(
+    "/{diagnostico_id}/cuestionario",
+    response_model=CuestionarioResponse,
+    summary="Obtener el cuestionario del diagnóstico",
+    description="RF-07/HU-08: dimensiones y preguntas activas de la versión "
+    "del modelo fijada al diagnóstico, para que el representante lo responda.",
+)
+async def obtener_cuestionario(
+    diagnostico_id: str,
+    caso_uso: ObtenerCuestionario = Depends(obtener_caso_uso_obtener_cuestionario),
+    usuario_id: str = Depends(requiere_rol("representante")),
+):
+    try:
+        modelo = await caso_uso.ejecutar(usuario_id, diagnostico_id)
+    except DiagnosticoNoEncontrado:
+        raise HTTPException(status_code=404, detail="Diagnóstico no encontrado")
+    except AccesoNoAutorizado:
+        raise HTTPException(
+            status_code=403, detail="Este diagnóstico no pertenece a su empresa"
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _cuestionario_a_response(modelo)
 
 
 @router.post(

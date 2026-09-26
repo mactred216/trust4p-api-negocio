@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+VERSION_POLITICA_TRATAMIENTO_DATOS = "1.0"  # RF-43: versión vigente de la política
+
 
 @dataclass
 class Asignacion:
@@ -35,6 +37,8 @@ class Usuario:
     historial_claves: list[str] = field(default_factory=list)
     cargo: Optional[str] = None
     telefono: Optional[str] = None
+    acepto_tratamiento_en: Optional[datetime] = None
+    version_politica_aceptada: Optional[str] = None
 
     HISTORIAL_CLAVES_MAXIMO = 5
 

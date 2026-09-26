@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
+
 import bcrypt
 
 from src.dominio.entidades.token_verificacion import TipoToken
-from src.dominio.entidades.usuario import Rol, Usuario
+from src.dominio.entidades.usuario import (VERSION_POLITICA_TRATAMIENTO_DATOS,
+                                           Rol, Usuario)
 from src.dominio.puertos.repositorio_solicitud import RepositorioSolicitud
 from src.dominio.puertos.repositorio_token import RepositorioToken
 from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
@@ -12,7 +15,7 @@ class TokenInvalido(Exception):
 
 
 class AutorizacionRequerida(Exception):
-    """RF-44: sin autorización de tratamiento de datos no se completa el registro."""
+    """RF-43: sin autorización de tratamiento de datos no se completa el registro."""
 
     pass
 
@@ -57,6 +60,8 @@ class CompletarRegistro:
             apellidos=apellidos,
             rol=Rol(codigo="representante", permisos=[]),
             empresa_id=solicitud.empresa_id,
+            acepto_tratamiento_en=datetime.now(timezone.utc),
+            version_politica_aceptada=VERSION_POLITICA_TRATAMIENTO_DATOS,
         )
         usuario = await self._usuarios.guardar(usuario)
 

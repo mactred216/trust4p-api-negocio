@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 
 from src.dominio.entidades.usuario import Rol, Usuario
@@ -61,3 +63,20 @@ async def test_obtener_por_id_con_formato_invalido_devuelve_none(db):
     repo = RepositorioMongoUsuario(db)
 
     assert await repo.obtener_por_id("no-es-un-object-id") is None
+
+
+@pytest.mark.asyncio
+async def test_guardar_y_obtener_conserva_autorizacion_tratamiento_datos(db):
+    """RF-43: la aceptación del tratamiento de datos se persiste con fecha y
+    versión de la política, no solo se valida como compuerta efímera."""
+    repo = RepositorioMongoUsuario(db)
+    fecha = datetime.now(timezone.utc)
+    usuario = crear_usuario_prueba("consentimiento@trust4p.com")
+    usuario.acepto_tratamiento_en = fecha
+    usuario.version_politica_aceptada = "1.0"
+    await repo.guardar(usuario)
+
+    recuperado = await repo.obtener_por_correo("consentimiento@trust4p.com")
+
+    assert recuperado.version_politica_aceptada == "1.0"
+    assert recuperado.acepto_tratamiento_en is not None

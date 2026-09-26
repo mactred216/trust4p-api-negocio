@@ -112,6 +112,17 @@ async def aprobar_solicitud(
         valores_nuevos={"estado": "aprobada", "empresa_id": empresa.id},
     )
 
+    # RF-45 paso 3: registra el envío de la notificación (fecha y estado de
+    # entrega) en la bitácora; el envío mismo ocurre dentro del caso de uso.
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "notificaciones_correo",
+        None,
+        "enviar",
+        valores_nuevos={"tipo_evento": "invitacion", "estado": "enviado"},
+    )
+
     return EmpresaResponse(id=empresa.id, nombre=empresa.nombre)
 
 

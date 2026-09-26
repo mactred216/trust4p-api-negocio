@@ -52,6 +52,8 @@ async def test_completar_registro_exitoso():
     assert usuario.correo == "ana@innovatech.com"
     assert usuario.empresa_id == "emp-1"
     assert usuario.rol.codigo == "representante"
+    assert usuario.acepto_tratamiento_en is not None
+    assert usuario.version_politica_aceptada == "1.0"
     repo_token.actualizar.assert_called_once()
 
 

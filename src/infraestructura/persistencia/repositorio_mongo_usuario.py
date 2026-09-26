@@ -80,6 +80,8 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             historial_claves=doc.get("historial_claves", []),
             cargo=doc.get("cargo"),
             telefono=doc.get("telefono"),
+            acepto_tratamiento_en=doc.get("acepto_tratamiento_en"),
+            version_politica_aceptada=doc.get("version_politica_aceptada"),
         )
 
     def _a_documento(self, usuario: Usuario) -> dict:
@@ -96,6 +98,8 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             "historial_claves": usuario.historial_claves,
             "cargo": usuario.cargo,
             "telefono": usuario.telefono,
+            "acepto_tratamiento_en": usuario.acepto_tratamiento_en,
+            "version_politica_aceptada": usuario.version_politica_aceptada,
             "asignaciones": [
                 {
                     "empresa_id": a.empresa_id,

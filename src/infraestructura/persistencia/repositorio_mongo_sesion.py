@@ -4,11 +4,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ReturnDocument
 
 from src.dominio.entidades.usuario import Usuario
 from src.dominio.puertos.repositorio_sesion import RepositorioSesion
 
-DURACION_SESION_MINUTOS = 30  # RF-49: cierre por inactividad
+DURACION_SESION_MINUTOS = 30  # RF-47: cierre de sesión por inactividad
 
 
 class RepositorioMongoSesion(RepositorioSesion):
@@ -34,26 +35,32 @@ class RepositorioMongoSesion(RepositorioSesion):
         return token  # el token en claro solo existe aquí; nunca se persiste
 
     async def obtener_usuario_id_por_token(self, token: str) -> Optional[str]:
-        token_hash = self._hash(token)
-        doc = await self._coleccion.find_one(
-            {
-                "token_hash": token_hash,
-                "expira_en": {"$gt": datetime.now(timezone.utc)},
-            }
-        )
+        doc = await self._renovar_y_obtener(token)
         if doc is None:
             return None
         return doc["usuario_id"]
 
     async def obtener_sesion_por_token(self, token: str) -> Optional[dict]:
+        return await self._renovar_y_obtener(token)
+
+    async def _renovar_y_obtener(self, token: str) -> Optional[dict]:
+        """RF-47: cada verificación exitosa es una interacción del usuario y
+        extiende la sesión desde ese momento (ventana deslizante), no desde
+        el inicio de sesión."""
         token_hash = self._hash(token)
-        doc = await self._coleccion.find_one(
+        return await self._coleccion.find_one_and_update(
             {
                 "token_hash": token_hash,
                 "expira_en": {"$gt": datetime.now(timezone.utc)},
-            }
+            },
+            {
+                "$set": {
+                    "expira_en": datetime.now(timezone.utc)
+                    + timedelta(minutes=DURACION_SESION_MINUTOS)
+                }
+            },
+            return_document=ReturnDocument.AFTER,
         )
-        return doc
 
     async def revocar(self, token: str) -> None:
         token_hash = self._hash(token)

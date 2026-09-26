@@ -47,8 +47,10 @@ class Diagnostico:
         RF-10: el avance se calcula sobre las preguntas OBLIGATORIAS
         APLICABLES (respetando el bloqueo condicional de RF-08), no sobre
         todas las preguntas activas."""
-        if self.esta_cerrado():
-            raise ValueError("El diagnóstico está cerrado y no admite más respuestas")
+        if self.estado != ESTADO_INICIAL:
+            raise ValueError(
+                f"El diagnóstico no admite más respuestas (estado actual: {self.estado})"
+            )
 
         self.respuestas = [
             r for r in self.respuestas if r.pregunta_codigo != respuesta.pregunta_codigo

@@ -53,6 +53,14 @@ def test_registrar_respuesta_en_diagnostico_cerrado_falla():
         diagnostico.registrar_respuesta(crear_respuesta(), {"p1"})
 
 
+def test_registrar_respuesta_en_diagnostico_completado_falla():
+    """RF-07 paso 5: una vez completado, las respuestas quedan fijas para que
+    el índice que se calcule sobre ellas sea reproducible (ASR-01)."""
+    diagnostico = crear_diagnostico_prueba(estado="completado")
+    with pytest.raises(ValueError):
+        diagnostico.registrar_respuesta(crear_respuesta(), {"p1"})
+
+
 def test_avance_no_supera_cien_por_ciento():
     diagnostico = crear_diagnostico_prueba()
     diagnostico.registrar_respuesta(crear_respuesta("p1"), {"p1"})

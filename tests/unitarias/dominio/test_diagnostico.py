@@ -19,7 +19,7 @@ def crear_diagnostico_prueba(estado: str = "borrador") -> Diagnostico:
 
 def crear_respuesta(codigo="p1", dimension="innovacion") -> Respuesta:
     return Respuesta(
-        pregunta_codigo=codigo, dimension_codigo=dimension, opcion_codigo="alta"
+        pregunta_codigo=codigo, dimension_codigo=dimension, opciones_codigo=["alta"]
     )
 
 
@@ -39,12 +39,12 @@ def test_registrar_respuesta_reemplaza_la_anterior_para_la_misma_pregunta():
     diagnostico = crear_diagnostico_prueba()
     diagnostico.registrar_respuesta(crear_respuesta("p1"), {"p1", "p2"})
     nueva = Respuesta(
-        pregunta_codigo="p1", dimension_codigo="innovacion", opcion_codigo="baja"
+        pregunta_codigo="p1", dimension_codigo="innovacion", opciones_codigo=["baja"]
     )
     diagnostico.registrar_respuesta(nueva, {"p1", "p2"})
 
     assert len(diagnostico.respuestas) == 1
-    assert diagnostico.respuestas[0].opcion_codigo == "baja"
+    assert diagnostico.respuestas[0].opciones_codigo == ["baja"]
 
 
 def test_registrar_respuesta_en_diagnostico_cerrado_falla():

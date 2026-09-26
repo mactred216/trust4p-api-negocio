@@ -26,11 +26,11 @@ def crear_pregunta(
     )
 
 
-def crear_respuesta(codigo, opcion_codigo=None, texto=None, valor=None) -> Respuesta:
+def crear_respuesta(codigo, opciones_codigo=None, texto=None, valor=None) -> Respuesta:
     return Respuesta(
         pregunta_codigo=codigo,
         dimension_codigo="innovacion",
-        opcion_codigo=opcion_codigo,
+        opciones_codigo=opciones_codigo or [],
         texto=texto,
         valor=valor,
     )
@@ -38,13 +38,13 @@ def crear_respuesta(codigo, opcion_codigo=None, texto=None, valor=None) -> Respu
 
 def test_evaluar_condicion_igual_verdadera():
     condicion = CondicionActivacion(pregunta_codigo="p1", operador="igual", valor="si")
-    respuestas = {"p1": crear_respuesta("p1", opcion_codigo="si")}
+    respuestas = {"p1": crear_respuesta("p1", opciones_codigo=["si"])}
     assert evaluar_condicion(condicion, respuestas) is True
 
 
 def test_evaluar_condicion_igual_falsa():
     condicion = CondicionActivacion(pregunta_codigo="p1", operador="igual", valor="si")
-    respuestas = {"p1": crear_respuesta("p1", opcion_codigo="no")}
+    respuestas = {"p1": crear_respuesta("p1", opciones_codigo=["no"])}
     assert evaluar_condicion(condicion, respuestas) is False
 
 
@@ -52,7 +52,7 @@ def test_evaluar_condicion_diferente():
     condicion = CondicionActivacion(
         pregunta_codigo="p1", operador="diferente", valor="si"
     )
-    respuestas = {"p1": crear_respuesta("p1", opcion_codigo="no")}
+    respuestas = {"p1": crear_respuesta("p1", opciones_codigo=["no"])}
     assert evaluar_condicion(condicion, respuestas) is True
 
 
@@ -106,7 +106,7 @@ def test_preguntas_aplicables_excluye_inactivas():
 def test_preguntas_aplicables_respeta_condicion_cumplida():
     condicion = CondicionActivacion(pregunta_codigo="p1", operador="igual", valor="si")
     preguntas = [crear_pregunta("p1"), crear_pregunta("p2", condicion=condicion)]
-    respuestas = [crear_respuesta("p1", opcion_codigo="si")]
+    respuestas = [crear_respuesta("p1", opciones_codigo=["si"])]
     aplicables = preguntas_aplicables(preguntas, respuestas)
     assert {p.codigo for p in aplicables} == {"p1", "p2"}
 
@@ -114,6 +114,6 @@ def test_preguntas_aplicables_respeta_condicion_cumplida():
 def test_preguntas_aplicables_excluye_condicion_no_cumplida():
     condicion = CondicionActivacion(pregunta_codigo="p1", operador="igual", valor="si")
     preguntas = [crear_pregunta("p1"), crear_pregunta("p2", condicion=condicion)]
-    respuestas = [crear_respuesta("p1", opcion_codigo="no")]
+    respuestas = [crear_respuesta("p1", opciones_codigo=["no"])]
     aplicables = preguntas_aplicables(preguntas, respuestas)
     assert {p.codigo for p in aplicables} == {"p1"}

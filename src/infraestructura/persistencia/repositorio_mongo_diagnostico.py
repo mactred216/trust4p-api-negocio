@@ -71,7 +71,7 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
                 Respuesta(
                     pregunta_codigo=r["pregunta_codigo"],
                     dimension_codigo=r["dimension_codigo"],
-                    opcion_codigo=r.get("opcion_codigo"),
+                    opciones_codigo=r.get("opciones_codigo", []),
                     valor=self._decimal(r.get("valor")),
                     texto=r.get("texto"),
                     respondida_en=r["respondida_en"],
@@ -97,7 +97,7 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
                 {
                     "pregunta_codigo": r.pregunta_codigo,
                     "dimension_codigo": r.dimension_codigo,
-                    "opcion_codigo": r.opcion_codigo,
+                    "opciones_codigo": r.opciones_codigo,
                     "valor": Decimal128(r.valor) if r.valor is not None else None,
                     "texto": r.texto,
                     "respondida_en": r.respondida_en,

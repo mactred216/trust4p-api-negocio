@@ -11,7 +11,8 @@ from src.aplicacion.casos_uso.gestionar_diagnostico import (
 from src.dominio.entidades.diagnostico import Diagnostico
 from src.dominio.entidades.empresa import Empresa, Sector
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
-                                                  ModeloMadurez, Pregunta)
+                                                  ModeloMadurez,
+                                                  OpcionPregunta, Pregunta)
 from src.dominio.entidades.usuario import Rol, Usuario
 
 
@@ -151,7 +152,7 @@ async def test_guardar_respuesta():
 
     caso_uso = GuardarRespuesta(repo_diagnostico, repo_usuario, repo_modelo)
     resultado = await caso_uso.ejecutar(
-        "user-1", "diag-1", pregunta_codigo="p1", opcion_codigo="alta"
+        "user-1", "diag-1", pregunta_codigo="p1", valor=Decimal("7")
     )
 
     assert len(resultado.respuestas) == 1
@@ -354,7 +355,7 @@ async def test_guardar_respuesta_ignora_preguntas_bloqueadas_por_condicion():
 
     caso_uso = GuardarRespuesta(repo_diagnostico, repo_usuario, repo_modelo)
     resultado = await caso_uso.ejecutar(
-        "user-1", "diag-1", pregunta_codigo="p1", opcion_codigo="baja"
+        "user-1", "diag-1", pregunta_codigo="p1", valor=Decimal("3")
     )
 
     assert resultado.porcentaje_avance == 100
@@ -474,3 +475,79 @@ async def test_obtener_cuestionario_version_de_modelo_inexistente_falla():
     caso_uso = ObtenerCuestionario(repo_diagnostico, repo_usuario, repo_modelo)
     with pytest.raises(ValueError):
         await caso_uso.ejecutar("user-1", "diag-1")
+
+
+def crear_modelo_con_pregunta_seleccion(tipo="seleccion_multiple"):
+    modelo = crear_modelo_prueba()
+    modelo.preguntas = [
+        Pregunta(
+            codigo="p1",
+            dimension_codigo="innovacion",
+            enunciado="¿Qué canales usa para innovar?",
+            tipo=tipo,
+            obligatoria=True,
+            peso=Decimal("1"),
+            en_demo=False,
+            orden=1,
+            opciones=[
+                OpcionPregunta(codigo="alta", etiqueta="Alta", valor=Decimal("10")),
+                OpcionPregunta(codigo="media", etiqueta="Media", valor=Decimal("5")),
+            ],
+        )
+    ]
+    return modelo
+
+
+@pytest.mark.asyncio
+async def test_guardar_respuesta_seleccion_multiple_acepta_varias_opciones():
+    diagnostico = crear_diagnostico_prueba()
+    modelo = crear_modelo_con_pregunta_seleccion("seleccion_multiple")
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba()
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = modelo
+
+    caso_uso = GuardarRespuesta(repo_diagnostico, repo_usuario, repo_modelo)
+    resultado = await caso_uso.ejecutar(
+        "user-1", "diag-1", pregunta_codigo="p1", opciones_codigo=["alta", "media"]
+    )
+
+    assert resultado.respuestas[0].opciones_codigo == ["alta", "media"]
+
+
+@pytest.mark.asyncio
+async def test_guardar_respuesta_seleccion_unica_rechaza_varias_opciones():
+    diagnostico = crear_diagnostico_prueba()
+    modelo = crear_modelo_con_pregunta_seleccion("seleccion_unica")
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba()
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = modelo
+
+    caso_uso = GuardarRespuesta(repo_diagnostico, repo_usuario, repo_modelo)
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar(
+            "user-1", "diag-1", pregunta_codigo="p1", opciones_codigo=["alta", "media"]
+        )
+
+
+@pytest.mark.asyncio
+async def test_guardar_respuesta_opcion_inexistente_falla():
+    diagnostico = crear_diagnostico_prueba()
+    modelo = crear_modelo_con_pregunta_seleccion("seleccion_unica")
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_usuario_prueba()
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = modelo
+
+    caso_uso = GuardarRespuesta(repo_diagnostico, repo_usuario, repo_modelo)
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar(
+            "user-1", "diag-1", pregunta_codigo="p1", opciones_codigo=["no-existe"]
+        )

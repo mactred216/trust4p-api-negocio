@@ -8,14 +8,16 @@ from src.dominio.entidades.modelo_madurez import CondicionActivacion, Pregunta
 como método de ninguna de las dos entidades."""
 
 
-def _valor_comparable(respuesta: Respuesta) -> str | None:
-    if respuesta.opcion_codigo is not None:
-        return respuesta.opcion_codigo
+def _valores_comparables(respuesta: Respuesta) -> list[str]:
+    """Una respuesta de selección múltiple puede traer varios códigos; el
+    resto de tipos aportan un único valor comparable."""
+    if respuesta.opciones_codigo:
+        return list(respuesta.opciones_codigo)
     if respuesta.texto is not None:
-        return respuesta.texto
+        return [respuesta.texto]
     if respuesta.valor is not None:
-        return str(respuesta.valor)
-    return None
+        return [str(respuesta.valor)]
+    return []
 
 
 def evaluar_condicion(
@@ -25,27 +27,32 @@ def evaluar_condicion(
     if respuesta is None:
         return False
 
-    valor = _valor_comparable(respuesta)
-    if valor is None:
+    valores = _valores_comparables(respuesta)
+    if not valores:
         return False
 
     if condicion.operador == "igual":
-        return valor == condicion.valor
+        return condicion.valor in valores
     if condicion.operador == "diferente":
-        return valor != condicion.valor
+        return condicion.valor not in valores
     if condicion.operador == "contiene":
-        return condicion.valor in valor
+        return any(condicion.valor in v for v in valores)
     if condicion.operador in ("mayor_que", "menor_que"):
         try:
-            valor_num = Decimal(valor)
             umbral = Decimal(condicion.valor)
         except InvalidOperation:
             return False
-        return (
-            valor_num > umbral
-            if condicion.operador == "mayor_que"
-            else valor_num < umbral
-        )
+        for v in valores:
+            try:
+                valor_num = Decimal(v)
+            except InvalidOperation:
+                continue
+            return (
+                valor_num > umbral
+                if condicion.operador == "mayor_que"
+                else valor_num < umbral
+            )
+        return False
     return False
 
 

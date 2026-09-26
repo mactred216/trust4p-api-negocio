@@ -26,7 +26,7 @@ router = APIRouter(prefix="/diagnosticos", tags=["diagnosticos"])
 class RespuestaResponse(BaseModel):
     pregunta_codigo: str
     dimension_codigo: str
-    opcion_codigo: Optional[str]
+    opciones_codigo: list[str]
     valor: Optional[Decimal]
     texto: Optional[str]
     respondida_en: datetime
@@ -50,7 +50,7 @@ class DiagnosticoResponse(BaseModel):
 
 class GuardarRespuestaRequest(BaseModel):
     pregunta_codigo: str
-    opcion_codigo: Optional[str] = None
+    opciones_codigo: list[str] = []
     valor: Optional[Decimal] = None
     texto: Optional[str] = None
 
@@ -61,9 +61,9 @@ class GuardarRespuestaRequest(BaseModel):
 
     @model_validator(mode="after")
     def _al_menos_un_contenido(self) -> "GuardarRespuestaRequest":
-        if self.opcion_codigo is None and self.valor is None and self.texto is None:
+        if not self.opciones_codigo and self.valor is None and self.texto is None:
             raise ValueError(
-                "Debe enviar opcion_codigo, valor o texto según el tipo de pregunta"
+                "Debe enviar opciones_codigo, valor o texto según el tipo de pregunta"
             )
         return self
 
@@ -162,7 +162,7 @@ def _a_response(diagnostico) -> DiagnosticoResponse:
             RespuestaResponse(
                 pregunta_codigo=r.pregunta_codigo,
                 dimension_codigo=r.dimension_codigo,
-                opcion_codigo=r.opcion_codigo,
+                opciones_codigo=r.opciones_codigo,
                 valor=r.valor,
                 texto=r.texto,
                 respondida_en=r.respondida_en,
@@ -307,7 +307,7 @@ async def guardar_respuesta(
             usuario_id,
             diagnostico_id,
             pregunta_codigo=datos.pregunta_codigo,
-            opcion_codigo=datos.opcion_codigo,
+            opciones_codigo=datos.opciones_codigo,
             valor=datos.valor,
             texto=datos.texto,
         )

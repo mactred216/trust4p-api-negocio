@@ -12,7 +12,7 @@ ESTADO_CERRADO = "cerrado"
 class Respuesta:
     pregunta_codigo: str
     dimension_codigo: str
-    opcion_codigo: Optional[str] = None
+    opciones_codigo: list[str] = field(default_factory=list)
     valor: Optional[Decimal] = None
     texto: Optional[str] = None
     respondida_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

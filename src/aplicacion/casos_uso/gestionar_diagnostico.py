@@ -103,10 +103,12 @@ class GuardarRespuesta:
         usuario_id: str,
         diagnostico_id: str,
         pregunta_codigo: str,
-        opcion_codigo: Optional[str] = None,
+        opciones_codigo: Optional[list[str]] = None,
         valor: Optional[Decimal] = None,
         texto: Optional[str] = None,
     ) -> Diagnostico:
+        opciones_codigo = opciones_codigo or []
+
         diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
         if diagnostico is None:
             raise DiagnosticoNoEncontrado()
@@ -131,10 +133,13 @@ class GuardarRespuesta:
                 f"versión '{diagnostico.modelo_version}'"
             )
 
+        if opciones_codigo:
+            self._validar_opciones(pregunta, opciones_codigo)
+
         respuesta = Respuesta(
             pregunta_codigo=pregunta_codigo,
             dimension_codigo=pregunta.dimension_codigo,
-            opcion_codigo=opcion_codigo,
+            opciones_codigo=opciones_codigo,
             valor=valor,
             texto=texto,
         )
@@ -150,6 +155,19 @@ class GuardarRespuesta:
         diagnostico.registrar_respuesta(respuesta, codigos_obligatorias_aplicables)
         await self._diagnosticos.actualizar(diagnostico)
         return diagnostico
+
+    def _validar_opciones(self, pregunta, opciones_codigo: list[str]) -> None:
+        if pregunta.tipo == "seleccion_unica" and len(opciones_codigo) > 1:
+            raise ValueError(
+                f"La pregunta '{pregunta.codigo}' es de selección única: "
+                "solo admite una opción"
+            )
+        codigos_validos = {o.codigo for o in pregunta.opciones}
+        invalidas = set(opciones_codigo) - codigos_validos
+        if invalidas:
+            raise ValueError(
+                f"La pregunta '{pregunta.codigo}' no tiene las opciones {sorted(invalidas)}"
+            )
 
 
 class ObtenerDiagnosticoEnCurso:

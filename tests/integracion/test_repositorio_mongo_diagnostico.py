@@ -21,7 +21,7 @@ def crear_diagnostico_prueba(
             Respuesta(
                 pregunta_codigo="p1",
                 dimension_codigo="innovacion",
-                opcion_codigo="alta",
+                opciones_codigo=["alta"],
                 valor=Decimal("3"),
             )
         ],

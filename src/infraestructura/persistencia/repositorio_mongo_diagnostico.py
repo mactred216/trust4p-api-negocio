@@ -6,7 +6,9 @@ from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.dominio.entidades.diagnostico import (ESTADO_CERRADO, Diagnostico,
-                                               Respuesta)
+                                               DimensionResultado,
+                                               Recomendacion, Respuesta,
+                                               ResultadoDiagnostico)
 from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
 
 
@@ -78,10 +80,44 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
                 )
                 for r in doc.get("respuestas", [])
             ],
+            resultado=self._resultado_a_entidad(doc.get("resultado")),
+            recomendaciones=[
+                Recomendacion(
+                    dimension_codigo=r["dimension_codigo"],
+                    titulo=r["titulo"],
+                    contenido=r["contenido"],
+                    prioridad=r["prioridad"],
+                )
+                for r in doc.get("recomendaciones", [])
+            ],
+            motivo_fallo=doc.get("motivo_fallo"),
             iniciado_en=doc["iniciado_en"],
             completado_en=doc.get("completado_en"),
             evaluado_en=doc.get("evaluado_en"),
             cerrado_en=doc.get("cerrado_en"),
+        )
+
+    def _resultado_a_entidad(
+        self, doc: Optional[dict]
+    ) -> Optional[ResultadoDiagnostico]:
+        if doc is None:
+            return None
+        return ResultadoDiagnostico(
+            indice_global=self._decimal(doc["indice_global"]),
+            nivel=doc["nivel"],
+            nivel_nombre=doc["nivel_nombre"],
+            nivel_descripcion=doc["nivel_descripcion"],
+            dimensiones=[
+                DimensionResultado(
+                    codigo=d["codigo"], puntaje=self._decimal(d["puntaje"])
+                )
+                for d in doc["dimensiones"]
+            ],
+            perfil_cultural_codigo=doc["perfil_cultural_codigo"],
+            perfil_cultura_descripcion=doc["perfil_cultura_descripcion"],
+            dimensiones_observaciones=doc["dimensiones_observaciones"],
+            lienzo_negocio=doc["lienzo_negocio"],
+            sintesis=doc["sintesis"],
         )
 
     def _a_documento(self, diagnostico: Diagnostico) -> dict:
@@ -104,12 +140,42 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
                 }
                 for r in diagnostico.respuestas
             ],
+            "resultado": self._resultado_a_documento(diagnostico.resultado),
+            "recomendaciones": [
+                {
+                    "dimension_codigo": r.dimension_codigo,
+                    "titulo": r.titulo,
+                    "contenido": r.contenido,
+                    "prioridad": r.prioridad,
+                }
+                for r in diagnostico.recomendaciones
+            ],
+            "motivo_fallo": diagnostico.motivo_fallo,
             "iniciado_en": diagnostico.iniciado_en,
             "completado_en": diagnostico.completado_en,
             "evaluado_en": diagnostico.evaluado_en,
             "cerrado_en": diagnostico.cerrado_en,
-            # resultado y recomendaciones: fuera de alcance de HU-010/HU-012
-            # (EP-03/EP-04); no se escriben todavía desde este adaptador.
+        }
+
+    def _resultado_a_documento(
+        self, resultado: Optional[ResultadoDiagnostico]
+    ) -> Optional[dict]:
+        if resultado is None:
+            return None
+        return {
+            "indice_global": Decimal128(resultado.indice_global),
+            "nivel": resultado.nivel,
+            "nivel_nombre": resultado.nivel_nombre,
+            "nivel_descripcion": resultado.nivel_descripcion,
+            "dimensiones": [
+                {"codigo": d.codigo, "puntaje": Decimal128(d.puntaje)}
+                for d in resultado.dimensiones
+            ],
+            "perfil_cultural_codigo": resultado.perfil_cultural_codigo,
+            "perfil_cultura_descripcion": resultado.perfil_cultura_descripcion,
+            "dimensiones_observaciones": resultado.dimensiones_observaciones,
+            "lienzo_negocio": resultado.lienzo_negocio,
+            "sintesis": resultado.sintesis,
         }
 
     @staticmethod

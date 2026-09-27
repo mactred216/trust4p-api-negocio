@@ -19,6 +19,39 @@ class Respuesta:
 
 
 @dataclass
+class DimensionResultado:
+    codigo: str
+    puntaje: Decimal
+
+
+@dataclass
+class ResultadoDiagnostico:
+    """RF-12 a RF-16, ADR-005: unión del resultado determinístico del motor
+    de cálculo (índice, nivel, puntajes por dimensión, código del perfil
+    cultural) con el contenido narrativo que redacta trust4p-servicio-agente
+    a partir de ese resultado (HU-038)."""
+
+    indice_global: Decimal
+    nivel: int
+    nivel_nombre: str
+    nivel_descripcion: str
+    dimensiones: list[DimensionResultado]
+    perfil_cultural_codigo: str
+    perfil_cultura_descripcion: str
+    dimensiones_observaciones: dict[str, str]
+    lienzo_negocio: dict[str, str]
+    sintesis: str
+
+
+@dataclass
+class Recomendacion:
+    dimension_codigo: str
+    titulo: str
+    contenido: str
+    prioridad: int
+
+
+@dataclass
 class Diagnostico:
     id: Optional[str]
     empresa_id: str
@@ -29,6 +62,9 @@ class Diagnostico:
     estado: str = ESTADO_INICIAL
     porcentaje_avance: int = 0
     respuestas: list[Respuesta] = field(default_factory=list)
+    resultado: Optional[ResultadoDiagnostico] = None
+    recomendaciones: list[Recomendacion] = field(default_factory=list)
+    motivo_fallo: Optional[str] = None
     iniciado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completado_en: Optional[datetime] = None
     evaluado_en: Optional[datetime] = None
@@ -91,3 +127,31 @@ class Diagnostico:
             )
         self.estado = "completado"
         self.completado_en = datetime.now(timezone.utc)
+
+    def marcar_evaluado(
+        self, resultado: ResultadoDiagnostico, recomendaciones: list[Recomendacion]
+    ) -> None:
+        """RF-36 a RF-40 (HU-038): registra el resultado final una vez que
+        trust4p-servicio-agente devolvió el contenido narrativo sobre el
+        resultado calculado (ADR-005). Solo procede desde 'completado': un
+        diagnóstico fallido no se reintenta automáticamente."""
+        if self.estado != "completado":
+            raise ValueError(
+                f"El diagnóstico debe estar completado para evaluarse (estado actual: {self.estado})"
+            )
+        self.estado = "evaluado"
+        self.resultado = resultado
+        self.recomendaciones = recomendaciones
+        self.evaluado_en = datetime.now(timezone.utc)
+
+    def marcar_fallido(self, motivo: str) -> None:
+        """RF-40: si el agente no logra producir una respuesta válida tras
+        sus reintentos, o la evaluación no puede completarse por otra razón,
+        el diagnóstico queda en 'fallido' en vez de quedar completado sin
+        resultado de forma indefinida."""
+        if self.estado != "completado":
+            raise ValueError(
+                f"El diagnóstico debe estar completado para marcarse como fallido (estado actual: {self.estado})"
+            )
+        self.estado = "fallido"
+        self.motivo_fallo = motivo

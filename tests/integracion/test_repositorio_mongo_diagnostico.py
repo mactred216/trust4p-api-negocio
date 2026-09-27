@@ -2,7 +2,9 @@ from decimal import Decimal
 
 import pytest
 
-from src.dominio.entidades.diagnostico import Diagnostico, Respuesta
+from src.dominio.entidades.diagnostico import (Diagnostico, DimensionResultado,
+                                               Recomendacion, Respuesta,
+                                               ResultadoDiagnostico)
 from src.infraestructura.persistencia.repositorio_mongo_diagnostico import \
     RepositorioMongoDiagnostico
 
@@ -125,3 +127,63 @@ async def test_obtener_por_id_con_formato_invalido_devuelve_none(db):
     repo = RepositorioMongoDiagnostico(db)
 
     assert await repo.obtener_por_id("no-es-un-object-id") is None
+
+
+@pytest.mark.asyncio
+async def test_actualizar_persiste_resultado_y_recomendaciones_de_evaluacion(db):
+    """HU-038: el resultado narrativo del agente y las recomendaciones deben
+    sobrevivir un ciclo de guardar/leer, incluyendo los Decimal del índice y
+    los puntajes por dimensión."""
+    repo = RepositorioMongoDiagnostico(db)
+    diagnostico = await repo.guardar(crear_diagnostico_prueba())
+    diagnostico.porcentaje_avance = 100
+    diagnostico.marcar_completado()
+    resultado = ResultadoDiagnostico(
+        indice_global=Decimal("7.2"),
+        nivel=2,
+        nivel_nombre="En desarrollo",
+        nivel_descripcion="...",
+        dimensiones=[DimensionResultado(codigo="innovacion", puntaje=Decimal("8"))],
+        perfil_cultural_codigo="ENFP",
+        perfil_cultura_descripcion="Descripción del perfil",
+        dimensiones_observaciones={"innovacion": "Observación"},
+        lienzo_negocio={"segmentos_clientes": "..."},
+        sintesis="Síntesis",
+    )
+    recomendaciones = [
+        Recomendacion(
+            dimension_codigo="innovacion",
+            titulo="Título",
+            contenido="Contenido",
+            prioridad=1,
+        )
+    ]
+    diagnostico.marcar_evaluado(resultado, recomendaciones)
+
+    await repo.actualizar(diagnostico)
+    recuperado = await repo.obtener_por_id(diagnostico.id)
+
+    assert recuperado.estado == "evaluado"
+    assert recuperado.evaluado_en is not None
+    assert recuperado.resultado.indice_global == Decimal("7.2")
+    assert recuperado.resultado.dimensiones[0].puntaje == Decimal("8")
+    assert recuperado.resultado.perfil_cultural_codigo == "ENFP"
+    assert recuperado.resultado.sintesis == "Síntesis"
+    assert len(recuperado.recomendaciones) == 1
+    assert recuperado.recomendaciones[0].titulo == "Título"
+
+
+@pytest.mark.asyncio
+async def test_actualizar_persiste_diagnostico_fallido(db):
+    repo = RepositorioMongoDiagnostico(db)
+    diagnostico = await repo.guardar(crear_diagnostico_prueba())
+    diagnostico.porcentaje_avance = 100
+    diagnostico.marcar_completado()
+    diagnostico.marcar_fallido("El servicio del agente no respondió")
+
+    await repo.actualizar(diagnostico)
+    recuperado = await repo.obtener_por_id(diagnostico.id)
+
+    assert recuperado.estado == "fallido"
+    assert recuperado.motivo_fallo == "El servicio del agente no respondió"
+    assert recuperado.resultado is None

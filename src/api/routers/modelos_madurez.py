@@ -32,12 +32,12 @@ from src.api.validadores_comunes import (descripcion_opcional, entero_positivo,
                                          texto_no_vacio,
                                          texto_opcional_no_vacio)
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
-    AgregarDimension, AgregarEjePerfilCultural, AgregarNivel,
-    AgregarPregunta, ConsultarModelo, CrearModeloMadurez, CrearNuevaVersion,
-    DesactivarPregunta, EditarDimension, EditarEjePerfilCultural, EditarNivel,
-    EditarPregunta, ListarModelos, ModeloNoEncontrado, ObtenerVersionVigente,
-    Publicar, QuitarDimension, QuitarEjePerfilCultural, QuitarNivel,
-    ReactivarPregunta, VersionDuplicada)
+    AgregarDimension, AgregarEjePerfilCultural, AgregarNivel, AgregarPregunta,
+    ConsultarModelo, CrearModeloMadurez, CrearNuevaVersion, DesactivarPregunta,
+    EditarDimension, EditarEjePerfilCultural, EditarNivel, EditarPregunta,
+    ListarModelos, ModeloNoEncontrado, ObtenerVersionVigente, Publicar,
+    QuitarDimension, QuitarEjePerfilCultural, QuitarNivel, ReactivarPregunta,
+    VersionDuplicada)
 
 TipoPregunta = Literal[
     "seleccion_unica", "seleccion_multiple", "escala", "numerica", "texto_libre"
@@ -368,7 +368,10 @@ class EjePerfilCulturalRequest(BaseModel):
         return texto_no_vacio(v, maximo=50)
 
     @field_validator(
-        "nombre", "polo_alto_codigo", "polo_alto_nombre", "polo_bajo_codigo",
+        "nombre",
+        "polo_alto_codigo",
+        "polo_alto_nombre",
+        "polo_bajo_codigo",
         "polo_bajo_nombre",
     )
     @classmethod
@@ -386,8 +389,12 @@ class EditarEjePerfilCulturalRequest(BaseModel):
     umbral: Optional[Decimal] = None
 
     @field_validator(
-        "nombre", "polo_alto_codigo", "polo_alto_nombre", "polo_bajo_codigo",
-        "polo_bajo_nombre", "dimension_codigo",
+        "nombre",
+        "polo_alto_codigo",
+        "polo_alto_nombre",
+        "polo_bajo_codigo",
+        "polo_bajo_nombre",
+        "dimension_codigo",
     )
     @classmethod
     def _texto_no_vacio(cls, v: Optional[str]) -> Optional[str]:

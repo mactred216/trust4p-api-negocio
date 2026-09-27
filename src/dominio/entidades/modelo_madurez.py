@@ -36,6 +36,27 @@ class Nivel:
     umbral_max: Decimal
 
 
+# RF-14: los cuatro rasgos del perfil cultural de la organización innovadora
+# (Calderón y Naranjo, 2007; Bridges, 2000). El conjunto es fijo — no son
+# dimensiones que el administrador pueda agregar o quitar libremente, sino
+# los cuatro ejes del marco teórico — pero cada uno referencia la dimensión
+# del propio modelo de madurez que lo determina, y esa asociación sí la
+# configura el administrador.
+EJES_PERFIL_CULTURAL_CODIGOS = {"extroversion", "intuicion", "sentimiento", "percepcion"}
+
+
+@dataclass
+class EjePerfilCultural:
+    codigo: str  # uno de EJES_PERFIL_CULTURAL_CODIGOS
+    nombre: str  # p. ej. "Extroversión"
+    polo_alto_codigo: str  # letra o código corto, p. ej. "E"
+    polo_alto_nombre: str  # p. ej. "Extrovertida"
+    polo_bajo_codigo: str  # p. ej. "I"
+    polo_bajo_nombre: str  # p. ej. "Introvertida"
+    dimension_codigo: str  # dimensión del modelo que determina este eje
+    umbral: Decimal  # puntaje de la dimensión >= umbral -> polo alto
+
+
 TIPOS_CON_OPCIONES = {"seleccion_unica", "seleccion_multiple"}
 
 
@@ -71,6 +92,9 @@ class ModeloMadurez:
     preguntas: list[Pregunta] = field(
         default_factory=list
     )  # RF-28/RF-31, HU-029/HU-032
+    ejes_perfil_cultural: list[EjePerfilCultural] = field(
+        default_factory=list
+    )  # RF-14
     creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def agregar_dimension(self, dimension: Dimension) -> None:
@@ -296,6 +320,70 @@ class ModeloMadurez:
                     f"Los niveles {actual.nivel} y {siguiente.nivel} tienen rangos solapados"
                 )
 
+    def agregar_eje_perfil_cultural(self, eje: EjePerfilCultural) -> None:
+        self._validar_editable()
+        if eje.codigo not in EJES_PERFIL_CULTURAL_CODIGOS:
+            raise ValueError(
+                f"'{eje.codigo}' no es un eje válido; debe ser uno de "
+                f"{sorted(EJES_PERFIL_CULTURAL_CODIGOS)}"
+            )
+        if any(e.codigo == eje.codigo for e in self.ejes_perfil_cultural):
+            raise ValueError(f"El eje '{eje.codigo}' ya está configurado")
+        if not any(d.codigo == eje.dimension_codigo for d in self.dimensiones):
+            raise ValueError(f"No existe la dimensión '{eje.dimension_codigo}'")
+        self.ejes_perfil_cultural.append(eje)
+
+    def editar_eje_perfil_cultural(
+        self,
+        codigo: str,
+        nombre: Optional[str] = None,
+        polo_alto_codigo: Optional[str] = None,
+        polo_alto_nombre: Optional[str] = None,
+        polo_bajo_codigo: Optional[str] = None,
+        polo_bajo_nombre: Optional[str] = None,
+        dimension_codigo: Optional[str] = None,
+        umbral: Optional[Decimal] = None,
+    ) -> None:
+        self._validar_editable()
+        eje = self._buscar_eje_perfil_cultural(codigo)
+        if dimension_codigo is not None:
+            if not any(d.codigo == dimension_codigo for d in self.dimensiones):
+                raise ValueError(f"No existe la dimensión '{dimension_codigo}'")
+            eje.dimension_codigo = dimension_codigo
+        if nombre is not None:
+            eje.nombre = nombre
+        if polo_alto_codigo is not None:
+            eje.polo_alto_codigo = polo_alto_codigo
+        if polo_alto_nombre is not None:
+            eje.polo_alto_nombre = polo_alto_nombre
+        if polo_bajo_codigo is not None:
+            eje.polo_bajo_codigo = polo_bajo_codigo
+        if polo_bajo_nombre is not None:
+            eje.polo_bajo_nombre = polo_bajo_nombre
+        if umbral is not None:
+            eje.umbral = umbral
+
+    def quitar_eje_perfil_cultural(self, codigo: str) -> None:
+        self._validar_editable()
+        eje = self._buscar_eje_perfil_cultural(codigo)
+        self.ejes_perfil_cultural.remove(eje)
+
+    def validar_ejes_perfil_cultural(self) -> None:
+        """RF-14: deben estar configurados los cuatro ejes del marco teórico,
+        ni más ni menos, cada uno con la dimensión que lo determina."""
+        codigos_configurados = {e.codigo for e in self.ejes_perfil_cultural}
+        faltantes = EJES_PERFIL_CULTURAL_CODIGOS - codigos_configurados
+        if faltantes:
+            raise ValueError(
+                f"Faltan ejes de perfil cultural por configurar: {sorted(faltantes)}"
+            )
+
+    def _buscar_eje_perfil_cultural(self, codigo: str) -> EjePerfilCultural:
+        for eje in self.ejes_perfil_cultural:
+            if eje.codigo == codigo:
+                return eje
+        raise ValueError(f"No existe el eje de perfil cultural '{codigo}'")
+
     def publicar(self, publicado_por: str) -> None:
         """RF-33/RF-34: publica la versión vigente. Ensambla R-02, R-03 y R-04;
         a partir de aquí la versión queda inmutable (ver _validar_editable)."""
@@ -304,6 +392,7 @@ class ModeloMadurez:
         self.validar_pesos_dimensiones()
         self.validar_pesos_preguntas()
         self.validar_niveles()
+        self.validar_ejes_perfil_cultural()
         self.publicado = True
         self.publicado_en = datetime.now(timezone.utc)
         self.publicado_por = publicado_por

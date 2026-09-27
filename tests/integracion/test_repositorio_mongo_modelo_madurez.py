@@ -3,10 +3,11 @@ from decimal import Decimal
 
 import pytest
 
-from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
-                                                  Dimension, ModeloMadurez,
-                                                  Nivel, OpcionPregunta,
-                                                  Pregunta)
+from src.dominio.entidades.modelo_madurez import (EJES_PERFIL_CULTURAL_CODIGOS,
+                                                  CondicionActivacion,
+                                                  Dimension, EjePerfilCultural,
+                                                  ModeloMadurez, Nivel,
+                                                  OpcionPregunta, Pregunta)
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
     RepositorioMongoModeloMadurez
 
@@ -70,6 +71,19 @@ def crear_modelo_prueba() -> ModeloMadurez:
                     pregunta_codigo="p1", operador="igual", valor="alta"
                 ),
             ),
+        ],
+        ejes_perfil_cultural=[
+            EjePerfilCultural(
+                codigo=codigo,
+                nombre=codigo,
+                polo_alto_codigo="A",
+                polo_alto_nombre=f"{codigo} alto",
+                polo_bajo_codigo="B",
+                polo_bajo_nombre=f"{codigo} bajo",
+                dimension_codigo="innovacion",
+                umbral=Decimal("5"),
+            )
+            for codigo in EJES_PERFIL_CULTURAL_CODIGOS
         ],
     )
 

@@ -4,13 +4,14 @@ import pytest
 
 from src.dominio.entidades.diagnostico import Diagnostico, Respuesta
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
-                                                  Dimension, ModeloMadurez,
-                                                  Nivel, OpcionPregunta,
-                                                  Pregunta)
+                                                  Dimension, EjePerfilCultural,
+                                                  ModeloMadurez, Nivel,
+                                                  OpcionPregunta, Pregunta)
 from src.dominio.servicios.motor_calculo import (RubricaNoCubreElIndice,
                                                  calcular_nivel,
                                                  calcular_puntaje_dimension,
-                                                 calcular_resultado)
+                                                 calcular_resultado,
+                                                 determinar_perfil_cultural)
 
 
 def crear_pregunta(
@@ -95,6 +96,48 @@ def crear_modelo_completo() -> ModeloMadurez:
             descripcion="Nivel alto",
             umbral_min=Decimal("7"),
             umbral_max=Decimal("10"),
+        ),
+    ]
+    modelo.ejes_perfil_cultural = [
+        EjePerfilCultural(
+            codigo="extroversion",
+            nombre="Extroversión",
+            polo_alto_codigo="E",
+            polo_alto_nombre="Extrovertida",
+            polo_bajo_codigo="I",
+            polo_bajo_nombre="Introvertida",
+            dimension_codigo="innovacion",
+            umbral=Decimal("5"),
+        ),
+        EjePerfilCultural(
+            codigo="intuicion",
+            nombre="Intuición",
+            polo_alto_codigo="N",
+            polo_alto_nombre="Intuitiva",
+            polo_bajo_codigo="S",
+            polo_bajo_nombre="Sensorial",
+            dimension_codigo="procesos",
+            umbral=Decimal("5"),
+        ),
+        EjePerfilCultural(
+            codigo="sentimiento",
+            nombre="Sentimiento",
+            polo_alto_codigo="F",
+            polo_alto_nombre="Sentimental",
+            polo_bajo_codigo="T",
+            polo_bajo_nombre="Racional",
+            dimension_codigo="innovacion",
+            umbral=Decimal("7"),
+        ),
+        EjePerfilCultural(
+            codigo="percepcion",
+            nombre="Percepción",
+            polo_alto_codigo="P",
+            polo_alto_nombre="Perceptiva",
+            polo_bajo_codigo="J",
+            polo_bajo_nombre="Calificadora",
+            dimension_codigo="procesos",
+            umbral=Decimal("3"),
         ),
     ]
     return modelo
@@ -222,6 +265,7 @@ def test_calcular_resultado_completo():
         "innovacion": Decimal("8"),
         "procesos": Decimal("5"),
     }
+    assert resultado.perfil_cultural.codigo == "ENFP"
 
 
 def test_calcular_resultado_es_reproducible():
@@ -243,3 +287,55 @@ def test_calcular_resultado_es_reproducible():
     assert resultado_1.indice_global == resultado_2.indice_global
     assert resultado_1.nivel == resultado_2.nivel
     assert resultado_1.dimensiones == resultado_2.dimensiones
+    assert resultado_1.perfil_cultural == resultado_2.perfil_cultural
+
+
+def test_determinar_perfil_cultural_combina_los_cuatro_ejes():
+    modelo = crear_modelo_completo()
+    respuestas = [
+        crear_respuesta("p1", "innovacion", opciones_codigo=["alta"]),  # innovacion=8
+        crear_respuesta("p2", "innovacion", valor=6),
+        crear_respuesta("p3", "procesos", valor=5),  # procesos=5
+        crear_respuesta("p4", "procesos", texto="notas"),
+    ]
+    diagnostico = crear_diagnostico_prueba(respuestas)
+
+    perfil = determinar_perfil_cultural(diagnostico, modelo)
+
+    assert perfil.codigo == "ENFP"
+    assert [e.eje_codigo for e in perfil.ejes] == [
+        "extroversion",
+        "intuicion",
+        "sentimiento",
+        "percepcion",
+    ]
+
+
+def test_determinar_perfil_cultural_polo_bajo_cuando_no_alcanza_el_umbral():
+    modelo = crear_modelo_completo()
+    respuestas = [
+        crear_respuesta("p1", "innovacion", opciones_codigo=["media"]),
+        crear_respuesta("p2", "innovacion", valor=4),  # innovacion=4.5
+        crear_respuesta("p3", "procesos", valor=6),  # procesos=6
+        crear_respuesta("p4", "procesos", texto="notas"),
+    ]
+    diagnostico = crear_diagnostico_prueba(respuestas)
+
+    perfil = determinar_perfil_cultural(diagnostico, modelo)
+
+    assert perfil.codigo == "INTP"
+
+
+def test_determinar_perfil_cultural_ignora_ejes_no_configurados():
+    modelo = crear_modelo_completo()
+    modelo.ejes_perfil_cultural = modelo.ejes_perfil_cultural[:1]  # solo extroversion
+    respuestas = [
+        crear_respuesta("p1", "innovacion", opciones_codigo=["alta"]),
+        crear_respuesta("p2", "innovacion", valor=6),
+    ]
+    diagnostico = crear_diagnostico_prueba(respuestas)
+
+    perfil = determinar_perfil_cultural(diagnostico, modelo)
+
+    assert perfil.codigo == "E"
+    assert len(perfil.ejes) == 1

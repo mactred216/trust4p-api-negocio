@@ -2,10 +2,35 @@ from decimal import Decimal
 
 import pytest
 
-from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
-                                                  Dimension, ModeloMadurez,
-                                                  Nivel, OpcionPregunta,
-                                                  Pregunta)
+from src.dominio.entidades.modelo_madurez import (EJES_PERFIL_CULTURAL_CODIGOS,
+                                                  CondicionActivacion,
+                                                  Dimension, EjePerfilCultural,
+                                                  ModeloMadurez, Nivel,
+                                                  OpcionPregunta, Pregunta)
+
+
+def crear_eje_perfil_cultural(
+    codigo, dimension_codigo="innovacion"
+) -> EjePerfilCultural:
+    return EjePerfilCultural(
+        codigo=codigo,
+        nombre=codigo,
+        polo_alto_codigo="A",
+        polo_alto_nombre=f"{codigo} alto",
+        polo_bajo_codigo="B",
+        polo_bajo_nombre=f"{codigo} bajo",
+        dimension_codigo=dimension_codigo,
+        umbral=Decimal("5"),
+    )
+
+
+def agregar_ejes_perfil_cultural_completos(
+    modelo: ModeloMadurez, dimension_codigo="innovacion"
+) -> None:
+    for codigo in EJES_PERFIL_CULTURAL_CODIGOS:
+        modelo.agregar_eje_perfil_cultural(
+            crear_eje_perfil_cultural(codigo, dimension_codigo)
+        )
 
 
 def crear_modelo_prueba(publicado: bool = False) -> ModeloMadurez:
@@ -383,6 +408,7 @@ def crear_modelo_publicable() -> ModeloMadurez:
     modelo.agregar_dimension(crear_dimension("innovacion", "1", 1))
     modelo.agregar_pregunta(crear_pregunta("p1", "innovacion", "1", 1))
     modelo.agregar_nivel(crear_nivel(1, "1", "10"))
+    agregar_ejes_perfil_cultural_completos(modelo)
     return modelo
 
 
@@ -398,6 +424,53 @@ def test_publicar_sin_dimensiones_falla():
     modelo = crear_modelo_prueba()
     with pytest.raises(ValueError):
         modelo.publicar("admin-1")
+
+
+def test_publicar_sin_ejes_perfil_cultural_completos_falla():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_dimension(crear_dimension("innovacion", "1", 1))
+    modelo.agregar_pregunta(crear_pregunta("p1", "innovacion", "1", 1))
+    modelo.agregar_nivel(crear_nivel(1, "1", "10"))
+    modelo.agregar_eje_perfil_cultural(crear_eje_perfil_cultural("extroversion"))
+    with pytest.raises(ValueError):
+        modelo.publicar("admin-1")
+
+
+def test_agregar_eje_perfil_cultural_codigo_invalido_falla():
+    modelo = crear_modelo_con_dimension()
+    with pytest.raises(ValueError):
+        modelo.agregar_eje_perfil_cultural(
+            crear_eje_perfil_cultural("no-es-un-eje-valido")
+        )
+
+
+def test_agregar_eje_perfil_cultural_dimension_inexistente_falla():
+    modelo = crear_modelo_prueba()
+    with pytest.raises(ValueError):
+        modelo.agregar_eje_perfil_cultural(
+            crear_eje_perfil_cultural("extroversion", dimension_codigo="no-existe")
+        )
+
+
+def test_agregar_eje_perfil_cultural_duplicado_falla():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_eje_perfil_cultural(crear_eje_perfil_cultural("extroversion"))
+    with pytest.raises(ValueError):
+        modelo.agregar_eje_perfil_cultural(crear_eje_perfil_cultural("extroversion"))
+
+
+def test_editar_eje_perfil_cultural():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_eje_perfil_cultural(crear_eje_perfil_cultural("extroversion"))
+    modelo.editar_eje_perfil_cultural("extroversion", umbral=Decimal("7"))
+    assert modelo._buscar_eje_perfil_cultural("extroversion").umbral == Decimal("7")
+
+
+def test_quitar_eje_perfil_cultural():
+    modelo = crear_modelo_con_dimension()
+    modelo.agregar_eje_perfil_cultural(crear_eje_perfil_cultural("extroversion"))
+    modelo.quitar_eje_perfil_cultural("extroversion")
+    assert modelo.ejes_perfil_cultural == []
 
 
 def test_publicar_con_pesos_de_dimensiones_incorrectos_falla():

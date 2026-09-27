@@ -3,9 +3,9 @@ from decimal import Decimal
 from typing import Optional
 
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
-                                                  Dimension, ModeloMadurez,
-                                                  Nivel, OpcionPregunta,
-                                                  Pregunta)
+                                                  Dimension, EjePerfilCultural,
+                                                  ModeloMadurez, Nivel,
+                                                  OpcionPregunta, Pregunta)
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
 
@@ -316,6 +316,90 @@ class QuitarNivel:
             raise ModeloNoEncontrado()
 
         modelo.quitar_nivel(numero_nivel)
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class AgregarEjePerfilCultural:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(
+        self,
+        modelo_id: str,
+        codigo: str,
+        nombre: str,
+        polo_alto_codigo: str,
+        polo_alto_nombre: str,
+        polo_bajo_codigo: str,
+        polo_bajo_nombre: str,
+        dimension_codigo: str,
+        umbral: Decimal,
+    ) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.agregar_eje_perfil_cultural(
+            EjePerfilCultural(
+                codigo=codigo,
+                nombre=nombre,
+                polo_alto_codigo=polo_alto_codigo,
+                polo_alto_nombre=polo_alto_nombre,
+                polo_bajo_codigo=polo_bajo_codigo,
+                polo_bajo_nombre=polo_bajo_nombre,
+                dimension_codigo=dimension_codigo,
+                umbral=umbral,
+            )
+        )
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class EditarEjePerfilCultural:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(
+        self,
+        modelo_id: str,
+        codigo: str,
+        nombre: Optional[str] = None,
+        polo_alto_codigo: Optional[str] = None,
+        polo_alto_nombre: Optional[str] = None,
+        polo_bajo_codigo: Optional[str] = None,
+        polo_bajo_nombre: Optional[str] = None,
+        dimension_codigo: Optional[str] = None,
+        umbral: Optional[Decimal] = None,
+    ) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.editar_eje_perfil_cultural(
+            codigo,
+            nombre=nombre,
+            polo_alto_codigo=polo_alto_codigo,
+            polo_alto_nombre=polo_alto_nombre,
+            polo_bajo_codigo=polo_bajo_codigo,
+            polo_bajo_nombre=polo_bajo_nombre,
+            dimension_codigo=dimension_codigo,
+            umbral=umbral,
+        )
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class QuitarEjePerfilCultural:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(self, modelo_id: str, codigo: str) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.quitar_eje_perfil_cultural(codigo)
         await self._modelos.actualizar(modelo)
         return modelo
 

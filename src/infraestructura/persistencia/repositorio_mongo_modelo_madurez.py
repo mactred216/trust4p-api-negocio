@@ -6,9 +6,9 @@ from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
-                                                  Dimension, ModeloMadurez,
-                                                  Nivel, OpcionPregunta,
-                                                  Pregunta)
+                                                  Dimension, EjePerfilCultural,
+                                                  ModeloMadurez, Nivel,
+                                                  OpcionPregunta, Pregunta)
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
 
@@ -120,6 +120,19 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                 )
                 for p in doc.get("preguntas", [])
             ],
+            ejes_perfil_cultural=[
+                EjePerfilCultural(
+                    codigo=e["codigo"],
+                    nombre=e["nombre"],
+                    polo_alto_codigo=e["polo_alto_codigo"],
+                    polo_alto_nombre=e["polo_alto_nombre"],
+                    polo_bajo_codigo=e["polo_bajo_codigo"],
+                    polo_bajo_nombre=e["polo_bajo_nombre"],
+                    dimension_codigo=e["dimension_codigo"],
+                    umbral=self._decimal(e["umbral"]),
+                )
+                for e in doc.get("ejes_perfil_cultural", [])
+            ],
             creado_en=doc["creado_en"],
         )
 
@@ -184,6 +197,19 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                     "activo": p.activo,
                 }
                 for p in modelo.preguntas
+            ],
+            "ejes_perfil_cultural": [
+                {
+                    "codigo": e.codigo,
+                    "nombre": e.nombre,
+                    "polo_alto_codigo": e.polo_alto_codigo,
+                    "polo_alto_nombre": e.polo_alto_nombre,
+                    "polo_bajo_codigo": e.polo_bajo_codigo,
+                    "polo_bajo_nombre": e.polo_bajo_nombre,
+                    "dimension_codigo": e.dimension_codigo,
+                    "umbral": Decimal128(e.umbral),
+                }
+                for e in modelo.ejes_perfil_cultural
             ],
             "creado_en": modelo.creado_en,
         }

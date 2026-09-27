@@ -9,8 +9,10 @@ from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     EditarNivel, EditarPregunta, ListarModelos, ModeloNoEncontrado,
     ObtenerVersionVigente, Publicar, QuitarDimension, QuitarNivel,
     ReactivarPregunta, VersionDuplicada)
-from src.dominio.entidades.modelo_madurez import (Dimension, ModeloMadurez,
-                                                  Nivel, Pregunta)
+from src.dominio.entidades.modelo_madurez import (EJES_PERFIL_CULTURAL_CODIGOS,
+                                                  Dimension, EjePerfilCultural,
+                                                  ModeloMadurez, Nivel,
+                                                  Pregunta)
 
 
 def crear_modelo_prueba() -> ModeloMadurez:
@@ -48,6 +50,19 @@ def crear_modelo_publicable() -> ModeloMadurez:
             umbral_max=Decimal("10"),
         )
     )
+    for codigo in EJES_PERFIL_CULTURAL_CODIGOS:
+        modelo.agregar_eje_perfil_cultural(
+            EjePerfilCultural(
+                codigo=codigo,
+                nombre=codigo,
+                polo_alto_codigo="A",
+                polo_alto_nombre=f"{codigo} alto",
+                polo_bajo_codigo="B",
+                polo_bajo_nombre=f"{codigo} bajo",
+                dimension_codigo="innovacion",
+                umbral=Decimal("5"),
+            )
+        )
     return modelo
 
 

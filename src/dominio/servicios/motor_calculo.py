@@ -76,17 +76,69 @@ class PuntajeDimension:
 
 
 @dataclass
+class EjeCultural:
+    eje_codigo: str
+    polo_codigo: str
+    polo_nombre: str
+
+
+@dataclass
+class PerfilCultural:
+    """RF-14: solo la determinación (qué código aplica) es del motor de
+    cálculo — la descripción narrativa la escribe el agente a partir de
+    este código, buscándolo en la base de conocimiento."""
+
+    codigo: str
+    ejes: list[EjeCultural]
+
+
+# Orden canónico de los cuatro ejes (Calderón y Naranjo, 2007; Bridges,
+# 2000) para que el código combinado (p. ej. "EIFP") sea siempre el mismo
+# ante las mismas respuestas — no depende del orden en que el administrador
+# haya configurado los ejes en el modelo.
+ORDEN_EJES_PERFIL_CULTURAL = ["extroversion", "intuicion", "sentimiento", "percepcion"]
+
+
+def determinar_perfil_cultural(
+    diagnostico: Diagnostico, modelo: ModeloMadurez
+) -> PerfilCultural:
+    """RF-14: para cada uno de los cuatro ejes del marco teórico, determina
+    hacia qué polo se inclina la empresa según el puntaje de la dimensión
+    que el administrador asoció a ese eje, y arma el código combinado."""
+    ejes_por_codigo = {e.codigo: e for e in modelo.ejes_perfil_cultural}
+    resultado_ejes = []
+    for codigo_eje in ORDEN_EJES_PERFIL_CULTURAL:
+        eje = ejes_por_codigo.get(codigo_eje)
+        if eje is None:
+            continue
+        puntaje = calcular_puntaje_dimension(
+            eje.dimension_codigo, modelo.preguntas, diagnostico.respuestas
+        )
+        if puntaje >= eje.umbral:
+            resultado_ejes.append(
+                EjeCultural(codigo_eje, eje.polo_alto_codigo, eje.polo_alto_nombre)
+            )
+        else:
+            resultado_ejes.append(
+                EjeCultural(codigo_eje, eje.polo_bajo_codigo, eje.polo_bajo_nombre)
+            )
+    codigo = "".join(e.polo_codigo for e in resultado_ejes)
+    return PerfilCultural(codigo=codigo, ejes=resultado_ejes)
+
+
+@dataclass
 class ResultadoCalculo:
-    """Lo que produce el motor de cálculo (RF-12/RF-13). Los campos
-    narrativos del resultado completo (perfil de cultura, lienzo,
-    recomendaciones, síntesis) los añade el agente aparte, conforme al
-    ADR-005, y no se modelan en esta clase."""
+    """Lo que produce el motor de cálculo (RF-12/RF-13/RF-14). Los campos
+    puramente narrativos del resultado completo (descripción del perfil de
+    cultura, lienzo, recomendaciones, síntesis) los añade el agente aparte,
+    conforme al ADR-005, y no se modelan en esta clase."""
 
     indice_global: Decimal
     nivel: int
     nivel_nombre: str
     nivel_descripcion: str
     dimensiones: list[PuntajeDimension]
+    perfil_cultural: PerfilCultural
 
 
 class RubricaNoCubreElIndice(Exception):
@@ -166,6 +218,7 @@ def calcular_resultado(
     )
 
     nivel = calcular_nivel(indice_global, modelo.niveles)
+    perfil_cultural = determinar_perfil_cultural(diagnostico, modelo)
 
     return ResultadoCalculo(
         indice_global=indice_global,
@@ -173,4 +226,5 @@ def calcular_resultado(
         nivel_nombre=nivel.nombre,
         nivel_descripcion=nivel.descripcion,
         dimensiones=dimensiones,
+        perfil_cultural=perfil_cultural,
     )

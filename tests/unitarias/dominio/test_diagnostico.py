@@ -2,7 +2,24 @@ from decimal import Decimal
 
 import pytest
 
-from src.dominio.entidades.diagnostico import Diagnostico, Respuesta
+from src.dominio.entidades.diagnostico import (Diagnostico, DimensionResultado,
+                                               Recomendacion, Respuesta,
+                                               ResultadoDiagnostico)
+
+
+def crear_resultado_prueba() -> ResultadoDiagnostico:
+    return ResultadoDiagnostico(
+        indice_global=Decimal("7.2"),
+        nivel=2,
+        nivel_nombre="En desarrollo",
+        nivel_descripcion="...",
+        dimensiones=[DimensionResultado(codigo="innovacion", puntaje=Decimal("8"))],
+        perfil_cultural_codigo="ENFP",
+        perfil_cultura_descripcion="Descripción",
+        dimensiones_observaciones={"innovacion": "Observación"},
+        lienzo_negocio={"segmentos_clientes": "..."},
+        sintesis="Síntesis",
+    )
 
 
 def crear_diagnostico_prueba(estado: str = "borrador") -> Diagnostico:
@@ -119,3 +136,39 @@ def test_marcar_completado_ya_completado_falla():
     diagnostico.porcentaje_avance = 100
     with pytest.raises(ValueError):
         diagnostico.marcar_completado()
+
+
+def test_marcar_evaluado_desde_completado():
+    diagnostico = crear_diagnostico_prueba(estado="completado")
+    resultado = crear_resultado_prueba()
+    recomendaciones = [
+        Recomendacion(
+            dimension_codigo="innovacion", titulo="T", contenido="C", prioridad=1
+        )
+    ]
+
+    diagnostico.marcar_evaluado(resultado, recomendaciones)
+
+    assert diagnostico.estado == "evaluado"
+    assert diagnostico.resultado is resultado
+    assert diagnostico.recomendaciones == recomendaciones
+    assert diagnostico.evaluado_en is not None
+
+
+def test_marcar_evaluado_sin_estar_completado_falla():
+    diagnostico = crear_diagnostico_prueba(estado="borrador")
+    with pytest.raises(ValueError):
+        diagnostico.marcar_evaluado(crear_resultado_prueba(), [])
+
+
+def test_marcar_fallido_desde_completado():
+    diagnostico = crear_diagnostico_prueba(estado="completado")
+    diagnostico.marcar_fallido("El servicio del agente no respondió")
+    assert diagnostico.estado == "fallido"
+    assert diagnostico.motivo_fallo == "El servicio del agente no respondió"
+
+
+def test_marcar_fallido_sin_estar_completado_falla():
+    diagnostico = crear_diagnostico_prueba(estado="borrador")
+    with pytest.raises(ValueError):
+        diagnostico.marcar_fallido("motivo cualquiera")

@@ -42,7 +42,12 @@ class Nivel:
 # los cuatro ejes del marco teórico — pero cada uno referencia la dimensión
 # del propio modelo de madurez que lo determina, y esa asociación sí la
 # configura el administrador.
-EJES_PERFIL_CULTURAL_CODIGOS = {"extroversion", "intuicion", "sentimiento", "percepcion"}
+EJES_PERFIL_CULTURAL_CODIGOS = {
+    "extroversion",
+    "intuicion",
+    "sentimiento",
+    "percepcion",
+}
 
 
 @dataclass
@@ -92,9 +97,7 @@ class ModeloMadurez:
     preguntas: list[Pregunta] = field(
         default_factory=list
     )  # RF-28/RF-31, HU-029/HU-032
-    ejes_perfil_cultural: list[EjePerfilCultural] = field(
-        default_factory=list
-    )  # RF-14
+    ejes_perfil_cultural: list[EjePerfilCultural] = field(default_factory=list)  # RF-14
     creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def agregar_dimension(self, dimension: Dimension) -> None:

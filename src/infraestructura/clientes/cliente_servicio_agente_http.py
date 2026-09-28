@@ -1,0 +1,127 @@
+import os
+
+import httpx
+
+from src.dominio.entidades.diagnostico import Diagnostico, Recomendacion
+from src.dominio.entidades.modelo_madurez import ModeloMadurez
+from src.dominio.puertos.cliente_servicio_agente import (ClienteServicioAgente,
+                                                         RespuestaAgente,
+                                                         ServicioAgenteError)
+from src.dominio.servicios.motor_calculo import ResultadoCalculo
+
+TIEMPO_ESPERA_SEGUNDOS = 60.0
+RUTA_EVALUACIONES = "/v1/evaluaciones"
+
+
+class ClienteServicioAgenteHTTP(ClienteServicioAgente):
+    """Adaptador HTTP hacia trust4p-servicio-agente. Autenticación de
+    servicio a servicio vía X-Api-Key (API_KEY_SERVICIOS) — distinta de la
+    sesión de usuario, ya que quien invoca es este backend, no un
+    navegador."""
+
+    def __init__(self, url_base: str | None = None, api_key: str | None = None):
+        self._url_base = (url_base or os.getenv("SERVICIO_AGENTE_URL") or "").rstrip(
+            "/"
+        )
+        self._api_key = api_key or os.getenv("API_KEY_SERVICIOS")
+
+    async def evaluar(
+        self,
+        diagnostico: Diagnostico,
+        modelo: ModeloMadurez,
+        resultado_calculo: ResultadoCalculo,
+    ) -> RespuestaAgente:
+        payload = self._construir_solicitud(diagnostico, modelo, resultado_calculo)
+        try:
+            async with httpx.AsyncClient(timeout=TIEMPO_ESPERA_SEGUNDOS) as cliente:
+                respuesta = await cliente.post(
+                    f"{self._url_base}{RUTA_EVALUACIONES}",
+                    json=payload,
+                    headers={"X-Api-Key": self._api_key or ""},
+                )
+        except httpx.HTTPError as e:
+            raise ServicioAgenteError(
+                f"Error de red al invocar al servicio del agente: {e}"
+            )
+
+        if respuesta.status_code != 200:
+            raise ServicioAgenteError(
+                f"El servicio del agente respondió {respuesta.status_code}: {respuesta.text}"
+            )
+
+        datos = respuesta.json()
+        return RespuestaAgente(
+            perfil_cultura_descripcion=datos["perfil_cultura_descripcion"],
+            dimensiones_observaciones=datos["dimensiones_observaciones"],
+            lienzo_negocio=datos["lienzo_negocio"],
+            sintesis=datos["sintesis"],
+            recomendaciones=[
+                Recomendacion(
+                    dimension_codigo=r["dimension_codigo"],
+                    titulo=r["titulo"],
+                    contenido=r["contenido"],
+                    prioridad=r["prioridad"],
+                )
+                for r in datos["recomendaciones"]
+            ],
+        )
+
+    def _construir_solicitud(
+        self,
+        diagnostico: Diagnostico,
+        modelo: ModeloMadurez,
+        resultado_calculo: ResultadoCalculo,
+    ) -> dict:
+        """R-13 (dato con destino externo): solo viajan empresa_id y el
+        contenido del diagnóstico — nunca razón social, NIT ni datos de
+        contacto (ADR-005/saneador de trust4p-servicio-agente valida esto
+        también en el otro extremo, defensa en profundidad)."""
+        preguntas_por_codigo = {p.codigo: p for p in modelo.preguntas}
+        return {
+            "diagnostico_id": diagnostico.id,
+            "empresa_id": diagnostico.empresa_id,
+            "modelo_version": diagnostico.modelo_version,
+            "resultado_calculo": {
+                "indice_global": str(resultado_calculo.indice_global),
+                "nivel": resultado_calculo.nivel,
+                "nivel_nombre": resultado_calculo.nivel_nombre,
+                "nivel_descripcion": resultado_calculo.nivel_descripcion,
+                "dimensiones": [
+                    {"codigo": d.dimension_codigo, "puntaje": str(d.puntaje)}
+                    for d in resultado_calculo.dimensiones
+                ],
+                "perfil_cultural": {"codigo": resultado_calculo.perfil_cultural.codigo},
+            },
+            "respuestas": [
+                {
+                    "pregunta_codigo": r.pregunta_codigo,
+                    "dimension_codigo": r.dimension_codigo,
+                    "enunciado": preguntas_por_codigo[r.pregunta_codigo].enunciado,
+                    "tipo": preguntas_por_codigo[r.pregunta_codigo].tipo,
+                    "opciones_codigo": r.opciones_codigo,
+                    "valor": str(r.valor) if r.valor is not None else None,
+                    "texto": r.texto,
+                }
+                for r in diagnostico.respuestas
+                if r.pregunta_codigo in preguntas_por_codigo
+            ],
+            "dimensiones_modelo": [
+                {
+                    "codigo": d.codigo,
+                    "nombre": d.nombre,
+                    "peso": str(d.peso),
+                    "orden": d.orden,
+                }
+                for d in modelo.dimensiones
+            ],
+            "niveles_modelo": [
+                {
+                    "nivel": n.nivel,
+                    "nombre": n.nombre,
+                    "descripcion": n.descripcion,
+                    "umbral_min": str(n.umbral_min),
+                    "umbral_max": str(n.umbral_max),
+                }
+                for n in modelo.niveles
+            ],
+        }

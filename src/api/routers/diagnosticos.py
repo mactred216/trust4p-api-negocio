@@ -2,18 +2,20 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, field_validator, model_validator
 
 from src.api.dependencias import (obtener_caso_uso_completar_diagnostico,
                                   obtener_caso_uso_consultar_diagnostico,
                                   obtener_caso_uso_diagnostico_en_curso,
+                                  obtener_caso_uso_evaluar_diagnostico,
                                   obtener_caso_uso_guardar_respuesta,
                                   obtener_caso_uso_iniciar_diagnostico,
                                   obtener_caso_uso_listar_diagnosticos_empresa,
                                   obtener_caso_uso_obtener_cuestionario)
 from src.api.middleware.autorizacion import requiere_rol
 from src.api.validadores_comunes import texto_no_vacio
+from src.aplicacion.casos_uso.evaluar_diagnostico import EvaluarDiagnostico
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, CompletarDiagnostico, ConsultarDiagnostico,
     DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado, GuardarRespuesta,
@@ -328,11 +330,16 @@ async def guardar_respuesta(
     summary="Completar el diagnóstico (cerrar la captura de respuestas)",
     description="RF-07 paso 5: pasa el diagnóstico de 'borrador' a "
     "'completado'; exige que todas las preguntas obligatorias aplicables "
-    "ya tengan respuesta.",
+    "ya tengan respuesta. RF-36/ASR-02 (HU-038): dispara la evaluación del "
+    "agente en segundo plano, sin bloquear la respuesta.",
 )
 async def completar_diagnostico(
     diagnostico_id: str,
+    background_tasks: BackgroundTasks,
     caso_uso: CompletarDiagnostico = Depends(obtener_caso_uso_completar_diagnostico),
+    caso_uso_evaluar: EvaluarDiagnostico = Depends(
+        obtener_caso_uso_evaluar_diagnostico
+    ),
     usuario_id: str = Depends(requiere_rol("representante")),
 ):
     try:
@@ -345,4 +352,5 @@ async def completar_diagnostico(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    background_tasks.add_task(caso_uso_evaluar.ejecutar, diagnostico.id)
     return _a_response(diagnostico)

@@ -290,11 +290,11 @@ def obtener_caso_uso_consultar_auditoria(
 
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
-    AgregarDimension, AgregarEjePerfilCultural, AgregarNivel,
-    AgregarPregunta, ConsultarModelo, CrearModeloMadurez, CrearNuevaVersion,
-    DesactivarPregunta, EditarDimension, EditarEjePerfilCultural, EditarNivel,
-    EditarPregunta, ListarModelos, ObtenerVersionVigente, Publicar,
-    QuitarDimension, QuitarEjePerfilCultural, QuitarNivel, ReactivarPregunta)
+    AgregarDimension, AgregarEjePerfilCultural, AgregarNivel, AgregarPregunta,
+    ConsultarModelo, CrearModeloMadurez, CrearNuevaVersion, DesactivarPregunta,
+    EditarDimension, EditarEjePerfilCultural, EditarNivel, EditarPregunta,
+    ListarModelos, ObtenerVersionVigente, Publicar, QuitarDimension,
+    QuitarEjePerfilCultural, QuitarNivel, ReactivarPregunta)
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
     RepositorioMongoModeloMadurez
 
@@ -506,3 +506,26 @@ def obtener_caso_uso_listar_diagnosticos_empresa(
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
 ) -> ListarDiagnosticosDeEmpresa:
     return ListarDiagnosticosDeEmpresa(repo_diagnostico, repo_usuario)
+
+
+from src.aplicacion.casos_uso.evaluar_diagnostico import EvaluarDiagnostico
+from src.infraestructura.clientes.cliente_servicio_agente_http import \
+    ClienteServicioAgenteHTTP
+
+
+def obtener_cliente_servicio_agente() -> ClienteServicioAgenteHTTP:
+    return ClienteServicioAgenteHTTP()
+
+
+def obtener_caso_uso_evaluar_diagnostico(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_modelo_madurez: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
+    cliente_agente: ClienteServicioAgenteHTTP = Depends(
+        obtener_cliente_servicio_agente
+    ),
+) -> EvaluarDiagnostico:
+    return EvaluarDiagnostico(repo_diagnostico, repo_modelo_madurez, cliente_agente)

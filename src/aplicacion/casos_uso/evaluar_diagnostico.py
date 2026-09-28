@@ -1,0 +1,71 @@
+from src.dominio.entidades.diagnostico import (DimensionResultado,
+                                               ResultadoDiagnostico)
+from src.dominio.puertos.cliente_servicio_agente import (ClienteServicioAgente,
+                                                         ServicioAgenteError)
+from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
+from src.dominio.puertos.repositorio_modelo_madurez import \
+    RepositorioModeloMadurez
+from src.dominio.servicios.motor_calculo import calcular_resultado
+
+
+class EvaluarDiagnostico:
+    """RF-36 a RF-40 (HU-038): orquesta la evaluación de un diagnóstico ya
+    completado. Calcula el resultado determinístico con el motor de cálculo
+    (ADR-005), delega en trust4p-servicio-agente la redacción del contenido
+    narrativo a partir de ese resultado, y persiste el resultado final o
+    marca el diagnóstico como fallido. Se ejecuta en segundo plano tras
+    completar el diagnóstico (ASR-02: interpretación encolada y procesada de
+    forma asíncrona), por lo que no tiene a quién reportarle una excepción:
+    todo fallo se resuelve dejando el diagnóstico en un estado consultable."""
+
+    def __init__(
+        self,
+        repo_diagnostico: RepositorioDiagnostico,
+        repo_modelo_madurez: RepositorioModeloMadurez,
+        cliente_agente: ClienteServicioAgente,
+    ):
+        self._diagnosticos = repo_diagnostico
+        self._modelos = repo_modelo_madurez
+        self._cliente_agente = cliente_agente
+
+    async def ejecutar(self, diagnostico_id: str) -> None:
+        diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
+        if diagnostico is None:
+            return
+
+        modelo = await self._modelos.obtener_por_version(diagnostico.modelo_version)
+        if modelo is None:
+            diagnostico.marcar_fallido(
+                "La versión del modelo de madurez aplicada a este diagnóstico ya no existe"
+            )
+            await self._diagnosticos.actualizar(diagnostico)
+            return
+
+        resultado_calculo = calcular_resultado(diagnostico, modelo)
+
+        try:
+            respuesta_agente = await self._cliente_agente.evaluar(
+                diagnostico, modelo, resultado_calculo
+            )
+        except ServicioAgenteError as e:
+            diagnostico.marcar_fallido(str(e))
+            await self._diagnosticos.actualizar(diagnostico)
+            return
+
+        resultado = ResultadoDiagnostico(
+            indice_global=resultado_calculo.indice_global,
+            nivel=resultado_calculo.nivel,
+            nivel_nombre=resultado_calculo.nivel_nombre,
+            nivel_descripcion=resultado_calculo.nivel_descripcion,
+            dimensiones=[
+                DimensionResultado(codigo=d.dimension_codigo, puntaje=d.puntaje)
+                for d in resultado_calculo.dimensiones
+            ],
+            perfil_cultural_codigo=resultado_calculo.perfil_cultural.codigo,
+            perfil_cultura_descripcion=respuesta_agente.perfil_cultura_descripcion,
+            dimensiones_observaciones=respuesta_agente.dimensiones_observaciones,
+            lienzo_negocio=respuesta_agente.lienzo_negocio,
+            sintesis=respuesta_agente.sintesis,
+        )
+        diagnostico.marcar_evaluado(resultado, respuesta_agente.recomendaciones)
+        await self._diagnosticos.actualizar(diagnostico)

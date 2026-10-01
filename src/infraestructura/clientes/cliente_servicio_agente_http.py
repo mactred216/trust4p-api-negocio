@@ -57,10 +57,13 @@ class ClienteServicioAgenteHTTP(ClienteServicioAgente):
             sintesis=datos["sintesis"],
             recomendaciones=[
                 Recomendacion(
+                    origen="agente",
                     dimension_codigo=r["dimension_codigo"],
                     titulo=r["titulo"],
                     contenido=r["contenido"],
                     prioridad=r["prioridad"],
+                    autor_id=None,
+                    visible=True,
                 )
                 for r in datos["recomendaciones"]
             ],

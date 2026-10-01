@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 
 from src.dominio.entidades.diagnostico import (Diagnostico, DimensionResultado,
+                                               PerfilCulturaResultado,
                                                Recomendacion, Respuesta,
                                                ResultadoDiagnostico)
 from src.infraestructura.persistencia.repositorio_mongo_diagnostico import \
@@ -132,8 +133,8 @@ async def test_obtener_por_id_con_formato_invalido_devuelve_none(db):
 @pytest.mark.asyncio
 async def test_actualizar_persiste_resultado_y_recomendaciones_de_evaluacion(db):
     """HU-038: el resultado narrativo del agente y las recomendaciones deben
-    sobrevivir un ciclo de guardar/leer, incluyendo los Decimal del índice y
-    los puntajes por dimensión."""
+    sobrevivir un ciclo de guardar/leer, incluyendo los Decimal del índice,
+    los puntajes por dimensión y el objeto anidado perfil_cultura."""
     repo = RepositorioMongoDiagnostico(db)
     diagnostico = await repo.guardar(crear_diagnostico_prueba())
     diagnostico.porcentaje_avance = 100
@@ -141,24 +142,27 @@ async def test_actualizar_persiste_resultado_y_recomendaciones_de_evaluacion(db)
     resultado = ResultadoDiagnostico(
         indice_global=Decimal("7.2"),
         nivel=2,
-        nivel_nombre="En desarrollo",
         nivel_descripcion="...",
         dimensiones=[DimensionResultado(codigo="innovacion", puntaje=Decimal("8"))],
-        perfil_cultural_codigo="ENFP",
-        perfil_cultura_descripcion="Descripción del perfil",
-        dimensiones_observaciones={"innovacion": "Observación"},
-        lienzo_negocio={"segmentos_clientes": "..."},
-        sintesis="Síntesis",
+        perfil_cultura=PerfilCulturaResultado(codigo="ENFP"),
     )
+    diagnostico.registrar_resultado_calculado(resultado)
     recomendaciones = [
         Recomendacion(
+            origen="agente",
             dimension_codigo="innovacion",
             titulo="Título",
             contenido="Contenido",
             prioridad=1,
         )
     ]
-    diagnostico.marcar_evaluado(resultado, recomendaciones)
+    diagnostico.marcar_evaluado(
+        perfil_cultura_descripcion="Descripción del perfil",
+        dimensiones_observaciones={"innovacion": "Observación"},
+        lienzo_negocio={"segmentos_clientes": "..."},
+        sintesis="Síntesis",
+        recomendaciones=recomendaciones,
+    )
 
     await repo.actualizar(diagnostico)
     recuperado = await repo.obtener_por_id(diagnostico.id)
@@ -167,18 +171,35 @@ async def test_actualizar_persiste_resultado_y_recomendaciones_de_evaluacion(db)
     assert recuperado.evaluado_en is not None
     assert recuperado.resultado.indice_global == Decimal("7.2")
     assert recuperado.resultado.dimensiones[0].puntaje == Decimal("8")
-    assert recuperado.resultado.perfil_cultural_codigo == "ENFP"
+    assert recuperado.resultado.dimensiones[0].observacion == "Observación"
+    assert recuperado.resultado.perfil_cultura.codigo == "ENFP"
+    assert recuperado.resultado.perfil_cultura.descripcion == "Descripción del perfil"
     assert recuperado.resultado.sintesis == "Síntesis"
+    assert recuperado.resultado.generado_en is not None
     assert len(recuperado.recomendaciones) == 1
     assert recuperado.recomendaciones[0].titulo == "Título"
+    assert recuperado.recomendaciones[0].origen == "agente"
+    assert recuperado.recomendaciones[0].visible is True
+    assert recuperado.recomendaciones[0].creado_en is not None
 
 
 @pytest.mark.asyncio
-async def test_actualizar_persiste_diagnostico_fallido(db):
+async def test_actualizar_persiste_diagnostico_fallido_conservando_resultado(db):
+    """ASR-02: el resultado determinístico ya calculado debe sobrevivir un
+    ciclo de guardar/leer incluso cuando el diagnóstico queda 'fallido'."""
     repo = RepositorioMongoDiagnostico(db)
     diagnostico = await repo.guardar(crear_diagnostico_prueba())
     diagnostico.porcentaje_avance = 100
     diagnostico.marcar_completado()
+    diagnostico.registrar_resultado_calculado(
+        ResultadoDiagnostico(
+            indice_global=Decimal("7.2"),
+            nivel=2,
+            nivel_descripcion="...",
+            dimensiones=[DimensionResultado(codigo="innovacion", puntaje=Decimal("8"))],
+            perfil_cultura=PerfilCulturaResultado(codigo="ENFP"),
+        )
+    )
     diagnostico.marcar_fallido("El servicio del agente no respondió")
 
     await repo.actualizar(diagnostico)
@@ -186,4 +207,7 @@ async def test_actualizar_persiste_diagnostico_fallido(db):
 
     assert recuperado.estado == "fallido"
     assert recuperado.motivo_fallo == "El servicio del agente no respondió"
-    assert recuperado.resultado is None
+    assert recuperado.resultado is not None
+    assert recuperado.resultado.indice_global == Decimal("7.2")
+    assert recuperado.resultado.perfil_cultura.codigo == "ENFP"
+    assert recuperado.resultado.sintesis is None

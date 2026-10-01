@@ -3,22 +3,21 @@ from decimal import Decimal
 import pytest
 
 from src.dominio.entidades.diagnostico import (Diagnostico, DimensionResultado,
+                                               PerfilCulturaResultado,
                                                Recomendacion, Respuesta,
                                                ResultadoDiagnostico)
 
 
-def crear_resultado_prueba() -> ResultadoDiagnostico:
+def crear_resultado_calculado_prueba() -> ResultadoDiagnostico:
+    """El resultado tal como queda justo después de
+    registrar_resultado_calculado(): solo la parte determinística, sin
+    contenido narrativo todavía (ASR-02)."""
     return ResultadoDiagnostico(
         indice_global=Decimal("7.2"),
         nivel=2,
-        nivel_nombre="En desarrollo",
         nivel_descripcion="...",
         dimensiones=[DimensionResultado(codigo="innovacion", puntaje=Decimal("8"))],
-        perfil_cultural_codigo="ENFP",
-        perfil_cultura_descripcion="Descripción",
-        dimensiones_observaciones={"innovacion": "Observación"},
-        lienzo_negocio={"segmentos_clientes": "..."},
-        sintesis="Síntesis",
+        perfil_cultura=PerfilCulturaResultado(codigo="ENFP"),
     )
 
 
@@ -138,27 +137,77 @@ def test_marcar_completado_ya_completado_falla():
         diagnostico.marcar_completado()
 
 
-def test_marcar_evaluado_desde_completado():
+def test_registrar_resultado_calculado_desde_completado():
     diagnostico = crear_diagnostico_prueba(estado="completado")
-    resultado = crear_resultado_prueba()
+    resultado = crear_resultado_calculado_prueba()
+
+    diagnostico.registrar_resultado_calculado(resultado)
+
+    assert diagnostico.resultado is resultado
+    assert diagnostico.estado == "completado"
+
+
+def test_registrar_resultado_calculado_sin_estar_completado_falla():
+    diagnostico = crear_diagnostico_prueba(estado="borrador")
+    with pytest.raises(ValueError):
+        diagnostico.registrar_resultado_calculado(crear_resultado_calculado_prueba())
+
+
+def test_marcar_evaluado_desde_completado_con_resultado_calculado():
+    diagnostico = crear_diagnostico_prueba(estado="completado")
+    diagnostico.registrar_resultado_calculado(crear_resultado_calculado_prueba())
     recomendaciones = [
         Recomendacion(
-            dimension_codigo="innovacion", titulo="T", contenido="C", prioridad=1
+            origen="agente",
+            dimension_codigo="innovacion",
+            titulo="T",
+            contenido="C",
+            prioridad=1,
         )
     ]
 
-    diagnostico.marcar_evaluado(resultado, recomendaciones)
+    diagnostico.marcar_evaluado(
+        perfil_cultura_descripcion="Descripción del perfil",
+        dimensiones_observaciones={"innovacion": "Observación"},
+        lienzo_negocio={"segmentos_clientes": "..."},
+        sintesis="Síntesis",
+        recomendaciones=recomendaciones,
+    )
 
     assert diagnostico.estado == "evaluado"
-    assert diagnostico.resultado is resultado
     assert diagnostico.recomendaciones == recomendaciones
     assert diagnostico.evaluado_en is not None
+    # ASR-02: el resultado determinístico ya existía; marcar_evaluado solo
+    # completa la parte narrativa sobre el mismo objeto.
+    assert diagnostico.resultado.indice_global == Decimal("7.2")
+    assert diagnostico.resultado.perfil_cultura.codigo == "ENFP"
+    assert diagnostico.resultado.perfil_cultura.descripcion == "Descripción del perfil"
+    assert diagnostico.resultado.dimensiones[0].observacion == "Observación"
+    assert diagnostico.resultado.sintesis == "Síntesis"
+
+
+def test_marcar_evaluado_sin_resultado_calculado_falla():
+    diagnostico = crear_diagnostico_prueba(estado="completado")
+    with pytest.raises(ValueError):
+        diagnostico.marcar_evaluado(
+            perfil_cultura_descripcion="...",
+            dimensiones_observaciones={},
+            lienzo_negocio={},
+            sintesis="...",
+            recomendaciones=[],
+        )
 
 
 def test_marcar_evaluado_sin_estar_completado_falla():
     diagnostico = crear_diagnostico_prueba(estado="borrador")
     with pytest.raises(ValueError):
-        diagnostico.marcar_evaluado(crear_resultado_prueba(), [])
+        diagnostico.marcar_evaluado(
+            perfil_cultura_descripcion="...",
+            dimensiones_observaciones={},
+            lienzo_negocio={},
+            sintesis="...",
+            recomendaciones=[],
+        )
 
 
 def test_marcar_fallido_desde_completado():
@@ -166,6 +215,20 @@ def test_marcar_fallido_desde_completado():
     diagnostico.marcar_fallido("El servicio del agente no respondió")
     assert diagnostico.estado == "fallido"
     assert diagnostico.motivo_fallo == "El servicio del agente no respondió"
+
+
+def test_marcar_fallido_conserva_el_resultado_calculado():
+    """ASR-02: un diagnóstico fallido conserva el índice ya calculado antes
+    de invocar al agente — solo falta la interpretación narrativa."""
+    diagnostico = crear_diagnostico_prueba(estado="completado")
+    diagnostico.registrar_resultado_calculado(crear_resultado_calculado_prueba())
+
+    diagnostico.marcar_fallido("El servicio del agente no respondió")
+
+    assert diagnostico.estado == "fallido"
+    assert diagnostico.resultado is not None
+    assert diagnostico.resultado.indice_global == Decimal("7.2")
+    assert diagnostico.resultado.sintesis is None
 
 
 def test_marcar_fallido_sin_estar_completado_falla():

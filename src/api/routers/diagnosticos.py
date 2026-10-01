@@ -37,31 +37,41 @@ class RespuestaResponse(BaseModel):
 class DimensionResultadoResponse(BaseModel):
     codigo: str
     puntaje: Decimal
+    observacion: Optional[str]
+
+
+class PerfilCulturaResponse(BaseModel):
+    codigo: str
+    descripcion: Optional[str]
 
 
 class ResultadoDiagnosticoResponse(BaseModel):
-    """RF-12 a RF-16 (HU-013 a HU-017): resultado determinístico del motor de
-    cálculo (índice, nivel, puntajes por dimensión, código del perfil
-    cultural) junto con el contenido narrativo redactado por
-    trust4p-servicio-agente a partir de ese resultado."""
+    """RF-12 a RF-16 (HU-013 a HU-017), ASR-02: resultado determinístico del
+    motor de cálculo (índice, nivel, puntaje por dimensión, código de
+    perfil cultural) junto con el contenido narrativo que redacta
+    trust4p-servicio-agente a partir de ese resultado. Los campos
+    narrativos (observacion, descripcion, lienzo_negocio, sintesis) son
+    null si el agente todavía no respondió o agotó sus reintentos — el
+    resultado numérico sigue disponible de todas formas."""
 
     indice_global: Decimal
     nivel: int
-    nivel_nombre: str
     nivel_descripcion: str
     dimensiones: list[DimensionResultadoResponse]
-    perfil_cultural_codigo: str
-    perfil_cultura_descripcion: str
-    dimensiones_observaciones: dict[str, str]
-    lienzo_negocio: dict[str, str]
-    sintesis: str
+    perfil_cultura: PerfilCulturaResponse
+    lienzo_negocio: Optional[dict[str, str]]
+    sintesis: Optional[str]
+    generado_en: datetime
 
 
 class RecomendacionResponse(BaseModel):
-    dimension_codigo: str
+    origen: str
+    dimension_codigo: Optional[str]
     titulo: str
     contenido: str
-    prioridad: int
+    prioridad: Optional[int]
+    visible: bool
+    creado_en: datetime
 
 
 class DiagnosticoResponse(BaseModel):
@@ -207,10 +217,13 @@ def _a_response(diagnostico) -> DiagnosticoResponse:
         resultado=_resultado_a_response(diagnostico.resultado),
         recomendaciones=[
             RecomendacionResponse(
+                origen=r.origen,
                 dimension_codigo=r.dimension_codigo,
                 titulo=r.titulo,
                 contenido=r.contenido,
                 prioridad=r.prioridad,
+                visible=r.visible,
+                creado_en=r.creado_en,
             )
             for r in diagnostico.recomendaciones
         ],
@@ -228,17 +241,20 @@ def _resultado_a_response(resultado) -> Optional[ResultadoDiagnosticoResponse]:
     return ResultadoDiagnosticoResponse(
         indice_global=resultado.indice_global,
         nivel=resultado.nivel,
-        nivel_nombre=resultado.nivel_nombre,
         nivel_descripcion=resultado.nivel_descripcion,
         dimensiones=[
-            DimensionResultadoResponse(codigo=d.codigo, puntaje=d.puntaje)
+            DimensionResultadoResponse(
+                codigo=d.codigo, puntaje=d.puntaje, observacion=d.observacion
+            )
             for d in resultado.dimensiones
         ],
-        perfil_cultural_codigo=resultado.perfil_cultural_codigo,
-        perfil_cultura_descripcion=resultado.perfil_cultura_descripcion,
-        dimensiones_observaciones=resultado.dimensiones_observaciones,
+        perfil_cultura=PerfilCulturaResponse(
+            codigo=resultado.perfil_cultura.codigo,
+            descripcion=resultado.perfil_cultura.descripcion,
+        ),
         lienzo_negocio=resultado.lienzo_negocio,
         sintesis=resultado.sintesis,
+        generado_en=resultado.generado_en,
     )
 
 

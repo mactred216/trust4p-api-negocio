@@ -6,7 +6,8 @@ from fastapi import (APIRouter, BackgroundTasks, Depends, HTTPException,
                      Response)
 from pydantic import BaseModel, field_validator, model_validator
 
-from src.api.dependencias import (obtener_caso_uso_completar_diagnostico,
+from src.api.dependencias import (obtener_caso_uso_cerrar_diagnostico,
+                                  obtener_caso_uso_completar_diagnostico,
                                   obtener_caso_uso_consultar_diagnostico,
                                   obtener_caso_uso_consultar_evolucion,
                                   obtener_caso_uso_diagnostico_en_curso,
@@ -26,10 +27,10 @@ from src.aplicacion.casos_uso.evaluar_diagnostico import EvaluarDiagnostico
 from src.aplicacion.casos_uso.generar_informe import (
     DiagnosticoSinResultado, GenerarInformeDiagnostico)
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
-    AccesoNoAutorizado, CompletarDiagnostico, ConsultarDiagnostico,
-    DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado, GuardarRespuesta,
-    IniciarDiagnostico, ListarDiagnosticosDeEmpresa, NoHayVersionVigente,
-    ObtenerCuestionario, ObtenerDiagnosticoEnCurso)
+    AccesoNoAutorizado, CerrarDiagnostico, CompletarDiagnostico,
+    ConsultarDiagnostico, DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado,
+    GuardarRespuesta, IniciarDiagnostico, ListarDiagnosticosDeEmpresa,
+    NoHayVersionVigente, ObtenerCuestionario, ObtenerDiagnosticoEnCurso)
 from src.infraestructura.informes.generador_informe_pdf import \
     generar_informe_pdf
 
@@ -585,4 +586,41 @@ async def completar_diagnostico(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     background_tasks.add_task(caso_uso_evaluar.ejecutar, diagnostico.id)
+    return _a_response(diagnostico)
+
+
+@router.post(
+    "/{diagnostico_id}/cerrar",
+    response_model=DiagnosticoResponse,
+    summary="Cerrar el diagnóstico",
+    description="RF-23/HU-024: exclusivo del consultor con la empresa "
+    "asignada vigente. Pasa el diagnóstico de 'evaluado' o 'fallido' a "
+    "'cerrado'; a partir de ahí no admite nuevas recomendaciones.",
+)
+async def cerrar_diagnostico(
+    diagnostico_id: str,
+    caso_uso: CerrarDiagnostico = Depends(obtener_caso_uso_cerrar_diagnostico),
+    usuario_id: str = Depends(requiere_rol("consultor")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        diagnostico = await caso_uso.ejecutar(usuario_id, diagnostico_id)
+    except DiagnosticoNoEncontrado:
+        raise HTTPException(status_code=404, detail="Diagnóstico no encontrado")
+    except AccesoNoAutorizado:
+        raise HTTPException(
+            status_code=403,
+            detail="No tiene una asignación vigente con la empresa de este diagnóstico",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "diagnosticos",
+        diagnostico_id,
+        "actualizar",
+        valores_nuevos={"estado": "cerrado"},
+    )
     return _a_response(diagnostico)

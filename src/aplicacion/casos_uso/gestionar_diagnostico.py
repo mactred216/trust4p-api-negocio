@@ -267,6 +267,33 @@ class CompletarDiagnostico:
         return diagnostico
 
 
+class CerrarDiagnostico:
+    """RF-23 (HU-024): el consultor cierra un diagnóstico de una empresa que
+    tiene asignada, una vez concluido el acompañamiento."""
+
+    def __init__(
+        self, repo_diagnostico: RepositorioDiagnostico, repo_usuario: RepositorioUsuario
+    ):
+        self._diagnosticos = repo_diagnostico
+        self._usuarios = repo_usuario
+
+    async def ejecutar(self, consultor_id: str, diagnostico_id: str) -> Diagnostico:
+        diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
+        if diagnostico is None:
+            raise DiagnosticoNoEncontrado()
+
+        consultor = await self._usuarios.obtener_por_id(consultor_id)
+        if (
+            consultor is None
+            or diagnostico.empresa_id not in consultor.empresas_asignadas_vigentes()
+        ):
+            raise AccesoNoAutorizado()
+
+        diagnostico.marcar_cerrado()
+        await self._diagnosticos.actualizar(diagnostico)
+        return diagnostico
+
+
 class ListarDiagnosticosDeEmpresa:
     """RF-11 paso 4: histórico de diagnósticos de la empresa."""
 

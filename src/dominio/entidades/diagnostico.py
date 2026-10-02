@@ -200,3 +200,15 @@ class Diagnostico:
             )
         self.estado = "fallido"
         self.motivo_fallo = motivo
+
+    def marcar_cerrado(self) -> None:
+        """RF-23 (HU-024): el consultor cierra el diagnóstico una vez
+        concluido el acompañamiento. Procede desde 'evaluado' o 'fallido' —
+        los dos estados terminales de la evaluación — nunca desde
+        'completado' (todavía en proceso) ni 'borrador'."""
+        if self.estado not in ("evaluado", "fallido"):
+            raise ValueError(
+                f"El diagnóstico debe estar evaluado o fallido para cerrarse (estado actual: {self.estado})"
+            )
+        self.estado = ESTADO_CERRADO
+        self.cerrado_en = datetime.now(timezone.utc)

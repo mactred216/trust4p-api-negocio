@@ -4,16 +4,16 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
-    AccesoNoAutorizado, CompletarDiagnostico, ConsultarDiagnostico,
-    DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado, GuardarRespuesta,
-    IniciarDiagnostico, ListarDiagnosticosDeEmpresa, NoHayVersionVigente,
-    ObtenerCuestionario, ObtenerDiagnosticoEnCurso)
+    AccesoNoAutorizado, CerrarDiagnostico, CompletarDiagnostico,
+    ConsultarDiagnostico, DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado,
+    GuardarRespuesta, IniciarDiagnostico, ListarDiagnosticosDeEmpresa,
+    NoHayVersionVigente, ObtenerCuestionario, ObtenerDiagnosticoEnCurso)
 from src.dominio.entidades.diagnostico import Diagnostico
 from src.dominio.entidades.empresa import Empresa, Sector
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
                                                   ModeloMadurez,
                                                   OpcionPregunta, Pregunta)
-from src.dominio.entidades.usuario import Rol, Usuario
+from src.dominio.entidades.usuario import Asignacion, Rol, Usuario
 
 
 def crear_usuario_prueba(empresa_id="emp-1"):
@@ -551,3 +551,90 @@ async def test_guardar_respuesta_opcion_inexistente_falla():
         await caso_uso.ejecutar(
             "user-1", "diag-1", pregunta_codigo="p1", opciones_codigo=["no-existe"]
         )
+
+
+def crear_consultor_prueba(empresa_id="emp-1", con_asignacion=True):
+    consultor = Usuario(
+        id="consultor-1",
+        correo="carlos@trust4p.com",
+        clave_hash="hash",
+        nombres="Carlos",
+        apellidos="Gomez",
+        rol=Rol(codigo="consultor"),
+    )
+    if con_asignacion:
+        consultor.asignaciones = [Asignacion(empresa_id=empresa_id)]
+    return consultor
+
+
+@pytest.mark.asyncio
+async def test_cerrar_diagnostico_evaluado_con_asignacion_vigente():
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.estado = "evaluado"
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_consultor_prueba()
+
+    caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
+    resultado = await caso_uso.ejecutar("consultor-1", "diag-1")
+
+    assert resultado.estado == "cerrado"
+    assert resultado.cerrado_en is not None
+    repo_diagnostico.actualizar.assert_called_once_with(diagnostico)
+
+
+@pytest.mark.asyncio
+async def test_cerrar_diagnostico_fallido_tambien_procede():
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.estado = "fallido"
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_consultor_prueba()
+
+    caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
+    resultado = await caso_uso.ejecutar("consultor-1", "diag-1")
+
+    assert resultado.estado == "cerrado"
+
+
+@pytest.mark.asyncio
+async def test_cerrar_diagnostico_sin_asignacion_vigente_falla():
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.estado = "evaluado"
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_consultor_prueba(
+        con_asignacion=False
+    )
+
+    caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
+    with pytest.raises(AccesoNoAutorizado):
+        await caso_uso.ejecutar("consultor-1", "diag-1")
+
+
+@pytest.mark.asyncio
+async def test_cerrar_diagnostico_aun_completado_falla():
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.estado = "completado"
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_consultor_prueba()
+
+    caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("consultor-1", "diag-1")
+
+
+@pytest.mark.asyncio
+async def test_cerrar_diagnostico_inexistente_falla():
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = None
+    repo_usuario = AsyncMock()
+
+    caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
+    with pytest.raises(DiagnosticoNoEncontrado):
+        await caso_uso.ejecutar("consultor-1", "diag-inexistente")

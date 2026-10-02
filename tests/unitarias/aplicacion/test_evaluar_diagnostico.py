@@ -9,6 +9,7 @@ from src.dominio.entidades.diagnostico import (Diagnostico, Recomendacion,
 from src.dominio.entidades.modelo_madurez import (Dimension, ModeloMadurez,
                                                   Nivel, OpcionPregunta,
                                                   Pregunta)
+from src.dominio.entidades.usuario import Rol, Usuario
 from src.dominio.puertos.cliente_servicio_agente import (RespuestaAgente,
                                                          ServicioAgenteError)
 
@@ -84,6 +85,32 @@ def crear_respuesta_agente_valida() -> RespuestaAgente:
     )
 
 
+def crear_mocks_notificacion():
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = Usuario(
+        id="user-1",
+        correo="ana@innovatech.com",
+        clave_hash="hash",
+        nombres="Ana",
+        apellidos="Pérez",
+        rol=Rol(codigo="representante"),
+        empresa_id="emp-1",
+    )
+    repo_usuario.listar_por_rol.return_value = [
+        Usuario(
+            id="admin-1",
+            correo="admin@trust4p.com",
+            clave_hash="hash",
+            nombres="Admin",
+            apellidos="Trust4P",
+            rol=Rol(codigo="administrador"),
+        )
+    ]
+    servicio_correo = AsyncMock()
+    repo_notificacion = AsyncMock()
+    return repo_usuario, servicio_correo, repo_notificacion
+
+
 @pytest.mark.asyncio
 async def test_evaluar_diagnostico_exitoso_marca_evaluado_y_persiste_resultado():
     diagnostico = crear_diagnostico_prueba()
@@ -93,8 +120,16 @@ async def test_evaluar_diagnostico_exitoso_marca_evaluado_y_persiste_resultado()
     repo_modelo.obtener_por_version.return_value = crear_modelo_prueba()
     cliente_agente = AsyncMock()
     cliente_agente.evaluar.return_value = crear_respuesta_agente_valida()
+    repo_usuario, servicio_correo, repo_notificacion = crear_mocks_notificacion()
 
-    caso_uso = EvaluarDiagnostico(repo_diagnostico, repo_modelo, cliente_agente)
+    caso_uso = EvaluarDiagnostico(
+        repo_diagnostico,
+        repo_modelo,
+        cliente_agente,
+        repo_usuario,
+        servicio_correo,
+        repo_notificacion,
+    )
     await caso_uso.ejecutar("diag-1")
 
     assert diagnostico.estado == "evaluado"
@@ -106,6 +141,13 @@ async def test_evaluar_diagnostico_exitoso_marca_evaluado_y_persiste_resultado()
     # ASR-02: se persiste dos veces — resultado determinístico primero,
     # luego el resultado evaluado con el contenido narrativo.
     assert repo_diagnostico.actualizar.call_count == 2
+    # RF-45: se notifica al representante de que ya hay resultado.
+    servicio_correo.enviar.assert_called_once()
+    assert (
+        servicio_correo.enviar.call_args.kwargs["destinatario"] == "ana@innovatech.com"
+    )
+    notificacion = repo_notificacion.registrar.call_args[0][0]
+    assert notificacion.tipo == "diagnostico_evaluado"
 
 
 @pytest.mark.asyncio
@@ -121,8 +163,16 @@ async def test_evaluar_diagnostico_falla_del_agente_marca_fallido_pero_conserva_
     cliente_agente.evaluar.side_effect = ServicioAgenteError(
         "El servicio del agente respondió 502"
     )
+    repo_usuario, servicio_correo, repo_notificacion = crear_mocks_notificacion()
 
-    caso_uso = EvaluarDiagnostico(repo_diagnostico, repo_modelo, cliente_agente)
+    caso_uso = EvaluarDiagnostico(
+        repo_diagnostico,
+        repo_modelo,
+        cliente_agente,
+        repo_usuario,
+        servicio_correo,
+        repo_notificacion,
+    )
     await caso_uso.ejecutar("diag-1")
 
     assert diagnostico.estado == "fallido"
@@ -131,6 +181,11 @@ async def test_evaluar_diagnostico_falla_del_agente_marca_fallido_pero_conserva_
     assert diagnostico.resultado.indice_global == Decimal("8")
     assert diagnostico.resultado.sintesis is None
     assert repo_diagnostico.actualizar.call_count == 2
+    # RF-38: se notifica al administrador, no al representante.
+    repo_usuario.listar_por_rol.assert_called_once_with("administrador")
+    assert (
+        servicio_correo.enviar.call_args.kwargs["destinatario"] == "admin@trust4p.com"
+    )
 
 
 @pytest.mark.asyncio
@@ -155,8 +210,16 @@ async def test_evaluar_diagnostico_con_indice_fuera_de_rubrica_marca_fallido():
     repo_modelo = AsyncMock()
     repo_modelo.obtener_por_version.return_value = modelo
     cliente_agente = AsyncMock()
+    repo_usuario, servicio_correo, repo_notificacion = crear_mocks_notificacion()
 
-    caso_uso = EvaluarDiagnostico(repo_diagnostico, repo_modelo, cliente_agente)
+    caso_uso = EvaluarDiagnostico(
+        repo_diagnostico,
+        repo_modelo,
+        cliente_agente,
+        repo_usuario,
+        servicio_correo,
+        repo_notificacion,
+    )
     await caso_uso.ejecutar("diag-1")
 
     assert diagnostico.estado == "fallido"
@@ -164,6 +227,7 @@ async def test_evaluar_diagnostico_con_indice_fuera_de_rubrica_marca_fallido():
     assert diagnostico.resultado is None
     cliente_agente.evaluar.assert_not_called()
     repo_diagnostico.actualizar.assert_called_once_with(diagnostico)
+    servicio_correo.enviar.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -174,13 +238,22 @@ async def test_evaluar_diagnostico_sin_version_de_modelo_marca_fallido():
     repo_modelo = AsyncMock()
     repo_modelo.obtener_por_version.return_value = None
     cliente_agente = AsyncMock()
+    repo_usuario, servicio_correo, repo_notificacion = crear_mocks_notificacion()
 
-    caso_uso = EvaluarDiagnostico(repo_diagnostico, repo_modelo, cliente_agente)
+    caso_uso = EvaluarDiagnostico(
+        repo_diagnostico,
+        repo_modelo,
+        cliente_agente,
+        repo_usuario,
+        servicio_correo,
+        repo_notificacion,
+    )
     await caso_uso.ejecutar("diag-1")
 
     assert diagnostico.estado == "fallido"
     cliente_agente.evaluar.assert_not_called()
     repo_diagnostico.actualizar.assert_called_once_with(diagnostico)
+    servicio_correo.enviar.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -189,9 +262,18 @@ async def test_evaluar_diagnostico_inexistente_no_hace_nada():
     repo_diagnostico.obtener_por_id.return_value = None
     repo_modelo = AsyncMock()
     cliente_agente = AsyncMock()
+    repo_usuario, servicio_correo, repo_notificacion = crear_mocks_notificacion()
 
-    caso_uso = EvaluarDiagnostico(repo_diagnostico, repo_modelo, cliente_agente)
+    caso_uso = EvaluarDiagnostico(
+        repo_diagnostico,
+        repo_modelo,
+        cliente_agente,
+        repo_usuario,
+        servicio_correo,
+        repo_notificacion,
+    )
     await caso_uso.ejecutar("diag-inexistente")
 
     repo_modelo.obtener_por_version.assert_not_called()
     repo_diagnostico.actualizar.assert_not_called()
+    servicio_correo.enviar.assert_not_called()

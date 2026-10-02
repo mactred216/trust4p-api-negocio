@@ -21,6 +21,8 @@ from src.infraestructura.clientes.cliente_correo_smtp import ClienteCorreoSMTP
 from src.infraestructura.persistencia.conexion import obtener_base_datos
 from src.infraestructura.persistencia.repositorio_mongo_empresa import \
     RepositorioMongoEmpresa
+from src.infraestructura.persistencia.repositorio_mongo_notificacion import \
+    RepositorioMongoNotificacion
 from src.infraestructura.persistencia.repositorio_mongo_permiso import \
     RepositorioMongoPermiso
 from src.infraestructura.persistencia.repositorio_mongo_rol import \
@@ -49,6 +51,12 @@ def obtener_caso_uso_radicar_solicitud(
 
 def obtener_servicio_correo() -> ClienteCorreoSMTP:
     return ClienteCorreoSMTP()
+
+
+def obtener_repositorio_notificacion(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoNotificacion:
+    return RepositorioMongoNotificacion(db)
 
 
 def obtener_repositorio_usuario(
@@ -128,8 +136,13 @@ def obtener_caso_uso_resolver_solicitud(
     repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
     repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
     servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
 ) -> ResolverSolicitud:
-    return ResolverSolicitud(repo_solicitud, repo_empresa, repo_token, servicio_correo)
+    return ResolverSolicitud(
+        repo_solicitud, repo_empresa, repo_token, servicio_correo, repo_notificacion
+    )
 
 
 def obtener_caso_uso_completar_registro(
@@ -536,8 +549,20 @@ def obtener_caso_uso_evaluar_diagnostico(
     cliente_agente: ClienteServicioAgenteHTTP = Depends(
         obtener_cliente_servicio_agente
     ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
 ) -> EvaluarDiagnostico:
-    return EvaluarDiagnostico(repo_diagnostico, repo_modelo_madurez, cliente_agente)
+    return EvaluarDiagnostico(
+        repo_diagnostico,
+        repo_modelo_madurez,
+        cliente_agente,
+        repo_usuario,
+        servicio_correo,
+        repo_notificacion,
+    )
 
 
 from src.aplicacion.casos_uso.consultar_evolucion import \

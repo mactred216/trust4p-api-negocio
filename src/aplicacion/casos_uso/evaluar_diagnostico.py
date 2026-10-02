@@ -6,7 +6,8 @@ from src.dominio.puertos.cliente_servicio_agente import (ClienteServicioAgente,
 from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
-from src.dominio.servicios.motor_calculo import calcular_resultado
+from src.dominio.servicios.motor_calculo import (RubricaNoCubreElIndice,
+                                                 calcular_resultado)
 
 
 class EvaluarDiagnostico:
@@ -44,7 +45,17 @@ class EvaluarDiagnostico:
             await self._diagnosticos.actualizar(diagnostico)
             return
 
-        resultado_calculo = calcular_resultado(diagnostico, modelo)
+        try:
+            resultado_calculo = calcular_resultado(diagnostico, modelo)
+        except RubricaNoCubreElIndice as e:
+            # No es un fallo del agente (ASR-02 no aplica aquí: no hay nada
+            # que persistir todavía) sino de la configuración del modelo o
+            # de una respuesta fuera de rango. Igual se deja el diagnóstico
+            # en un estado consultable, nunca en 'completado' colgado sin
+            # explicación.
+            diagnostico.marcar_fallido(str(e))
+            await self._diagnosticos.actualizar(diagnostico)
+            return
 
         # ASR-02: se calcula y persiste el índice antes de invocar al
         # agente — no al final, ni junto con la respuesta del agente — para

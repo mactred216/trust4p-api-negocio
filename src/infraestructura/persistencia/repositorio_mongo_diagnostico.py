@@ -7,6 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.dominio.entidades.diagnostico import (ESTADO_CERRADO, Diagnostico,
                                                DimensionResultado,
+                                               PerfilCulturaResultado,
                                                Recomendacion, Respuesta,
                                                ResultadoDiagnostico)
 from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
@@ -83,10 +84,14 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
             resultado=self._resultado_a_entidad(doc.get("resultado")),
             recomendaciones=[
                 Recomendacion(
-                    dimension_codigo=r["dimension_codigo"],
+                    origen=r["origen"],
+                    dimension_codigo=r.get("dimension_codigo"),
                     titulo=r["titulo"],
                     contenido=r["contenido"],
-                    prioridad=r["prioridad"],
+                    prioridad=r.get("prioridad"),
+                    autor_id=r.get("autor_id"),
+                    visible=r.get("visible", True),
+                    creado_en=r["creado_en"],
                 )
                 for r in doc.get("recomendaciones", [])
             ],
@@ -105,19 +110,22 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
         return ResultadoDiagnostico(
             indice_global=self._decimal(doc["indice_global"]),
             nivel=doc["nivel"],
-            nivel_nombre=doc["nivel_nombre"],
             nivel_descripcion=doc["nivel_descripcion"],
             dimensiones=[
                 DimensionResultado(
-                    codigo=d["codigo"], puntaje=self._decimal(d["puntaje"])
+                    codigo=d["codigo"],
+                    puntaje=self._decimal(d["puntaje"]),
+                    observacion=d.get("observacion"),
                 )
                 for d in doc["dimensiones"]
             ],
-            perfil_cultural_codigo=doc["perfil_cultural_codigo"],
-            perfil_cultura_descripcion=doc["perfil_cultura_descripcion"],
-            dimensiones_observaciones=doc["dimensiones_observaciones"],
-            lienzo_negocio=doc["lienzo_negocio"],
-            sintesis=doc["sintesis"],
+            perfil_cultura=PerfilCulturaResultado(
+                codigo=doc["perfil_cultura"]["codigo"],
+                descripcion=doc["perfil_cultura"].get("descripcion"),
+            ),
+            lienzo_negocio=doc.get("lienzo_negocio"),
+            sintesis=doc.get("sintesis"),
+            generado_en=doc["generado_en"],
         )
 
     def _a_documento(self, diagnostico: Diagnostico) -> dict:
@@ -143,10 +151,14 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
             "resultado": self._resultado_a_documento(diagnostico.resultado),
             "recomendaciones": [
                 {
+                    "origen": r.origen,
+                    "autor_id": r.autor_id,
                     "dimension_codigo": r.dimension_codigo,
                     "titulo": r.titulo,
                     "contenido": r.contenido,
                     "prioridad": r.prioridad,
+                    "visible": r.visible,
+                    "creado_en": r.creado_en,
                 }
                 for r in diagnostico.recomendaciones
             ],
@@ -165,17 +177,22 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
         return {
             "indice_global": Decimal128(resultado.indice_global),
             "nivel": resultado.nivel,
-            "nivel_nombre": resultado.nivel_nombre,
             "nivel_descripcion": resultado.nivel_descripcion,
             "dimensiones": [
-                {"codigo": d.codigo, "puntaje": Decimal128(d.puntaje)}
+                {
+                    "codigo": d.codigo,
+                    "puntaje": Decimal128(d.puntaje),
+                    "observacion": d.observacion,
+                }
                 for d in resultado.dimensiones
             ],
-            "perfil_cultural_codigo": resultado.perfil_cultural_codigo,
-            "perfil_cultura_descripcion": resultado.perfil_cultura_descripcion,
-            "dimensiones_observaciones": resultado.dimensiones_observaciones,
+            "perfil_cultura": {
+                "codigo": resultado.perfil_cultura.codigo,
+                "descripcion": resultado.perfil_cultura.descripcion,
+            },
             "lienzo_negocio": resultado.lienzo_negocio,
             "sintesis": resultado.sintesis,
+            "generado_en": resultado.generado_en,
         }
 
     @staticmethod

@@ -74,6 +74,7 @@ def crear_respuesta_agente_valida() -> RespuestaAgente:
         sintesis="Síntesis",
         recomendaciones=[
             Recomendacion(
+                origen="agente",
                 dimension_codigo="innovacion",
                 titulo="Título",
                 contenido="Contenido",
@@ -102,11 +103,15 @@ async def test_evaluar_diagnostico_exitoso_marca_evaluado_y_persiste_resultado()
     assert diagnostico.resultado.sintesis == "Síntesis"
     assert diagnostico.resultado.indice_global == Decimal("8")
     assert len(diagnostico.recomendaciones) == 1
-    repo_diagnostico.actualizar.assert_called_once_with(diagnostico)
+    # ASR-02: se persiste dos veces — resultado determinístico primero,
+    # luego el resultado evaluado con el contenido narrativo.
+    assert repo_diagnostico.actualizar.call_count == 2
 
 
 @pytest.mark.asyncio
-async def test_evaluar_diagnostico_falla_del_agente_marca_fallido():
+async def test_evaluar_diagnostico_falla_del_agente_marca_fallido_pero_conserva_resultado():
+    """ASR-02: aunque el agente falle, el índice ya calculado debe quedar
+    persistido y consultable — solo falta la interpretación narrativa."""
     diagnostico = crear_diagnostico_prueba()
     repo_diagnostico = AsyncMock()
     repo_diagnostico.obtener_por_id.return_value = diagnostico
@@ -122,7 +127,10 @@ async def test_evaluar_diagnostico_falla_del_agente_marca_fallido():
 
     assert diagnostico.estado == "fallido"
     assert "502" in diagnostico.motivo_fallo
-    repo_diagnostico.actualizar.assert_called_once_with(diagnostico)
+    assert diagnostico.resultado is not None
+    assert diagnostico.resultado.indice_global == Decimal("8")
+    assert diagnostico.resultado.sintesis is None
+    assert repo_diagnostico.actualizar.call_count == 2
 
 
 @pytest.mark.asyncio

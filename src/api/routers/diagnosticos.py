@@ -34,6 +34,46 @@ class RespuestaResponse(BaseModel):
     respondida_en: datetime
 
 
+class DimensionResultadoResponse(BaseModel):
+    codigo: str
+    puntaje: Decimal
+    observacion: Optional[str]
+
+
+class PerfilCulturaResponse(BaseModel):
+    codigo: str
+    descripcion: Optional[str]
+
+
+class ResultadoDiagnosticoResponse(BaseModel):
+    """RF-12 a RF-16 (HU-013 a HU-017), ASR-02: resultado determinístico del
+    motor de cálculo (índice, nivel, puntaje por dimensión, código de
+    perfil cultural) junto con el contenido narrativo que redacta
+    trust4p-servicio-agente a partir de ese resultado. Los campos
+    narrativos (observacion, descripcion, lienzo_negocio, sintesis) son
+    null si el agente todavía no respondió o agotó sus reintentos — el
+    resultado numérico sigue disponible de todas formas."""
+
+    indice_global: Decimal
+    nivel: int
+    nivel_descripcion: str
+    dimensiones: list[DimensionResultadoResponse]
+    perfil_cultura: PerfilCulturaResponse
+    lienzo_negocio: Optional[dict[str, str]]
+    sintesis: Optional[str]
+    generado_en: datetime
+
+
+class RecomendacionResponse(BaseModel):
+    origen: str
+    dimension_codigo: Optional[str]
+    titulo: str
+    contenido: str
+    prioridad: Optional[int]
+    visible: bool
+    creado_en: datetime
+
+
 class DiagnosticoResponse(BaseModel):
     id: str
     empresa_id: str
@@ -44,6 +84,9 @@ class DiagnosticoResponse(BaseModel):
     estado: str
     porcentaje_avance: int
     respuestas: list[RespuestaResponse]
+    resultado: Optional[ResultadoDiagnosticoResponse]
+    recomendaciones: list[RecomendacionResponse]
+    motivo_fallo: Optional[str]
     iniciado_en: datetime
     completado_en: Optional[datetime]
     evaluado_en: Optional[datetime]
@@ -171,10 +214,47 @@ def _a_response(diagnostico) -> DiagnosticoResponse:
             )
             for r in diagnostico.respuestas
         ],
+        resultado=_resultado_a_response(diagnostico.resultado),
+        recomendaciones=[
+            RecomendacionResponse(
+                origen=r.origen,
+                dimension_codigo=r.dimension_codigo,
+                titulo=r.titulo,
+                contenido=r.contenido,
+                prioridad=r.prioridad,
+                visible=r.visible,
+                creado_en=r.creado_en,
+            )
+            for r in diagnostico.recomendaciones
+        ],
+        motivo_fallo=diagnostico.motivo_fallo,
         iniciado_en=diagnostico.iniciado_en,
         completado_en=diagnostico.completado_en,
         evaluado_en=diagnostico.evaluado_en,
         cerrado_en=diagnostico.cerrado_en,
+    )
+
+
+def _resultado_a_response(resultado) -> Optional[ResultadoDiagnosticoResponse]:
+    if resultado is None:
+        return None
+    return ResultadoDiagnosticoResponse(
+        indice_global=resultado.indice_global,
+        nivel=resultado.nivel,
+        nivel_descripcion=resultado.nivel_descripcion,
+        dimensiones=[
+            DimensionResultadoResponse(
+                codigo=d.codigo, puntaje=d.puntaje, observacion=d.observacion
+            )
+            for d in resultado.dimensiones
+        ],
+        perfil_cultura=PerfilCulturaResponse(
+            codigo=resultado.perfil_cultura.codigo,
+            descripcion=resultado.perfil_cultura.descripcion,
+        ),
+        lienzo_negocio=resultado.lienzo_negocio,
+        sintesis=resultado.sintesis,
+        generado_en=resultado.generado_en,
     )
 
 

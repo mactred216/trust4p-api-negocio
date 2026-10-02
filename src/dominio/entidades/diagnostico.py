@@ -22,33 +22,51 @@ class Respuesta:
 class DimensionResultado:
     codigo: str
     puntaje: Decimal
+    observacion: Optional[str] = None
+
+
+@dataclass
+class PerfilCulturaResultado:
+    codigo: str
+    descripcion: Optional[str] = None
 
 
 @dataclass
 class ResultadoDiagnostico:
-    """RF-12 a RF-16, ADR-005: unión del resultado determinístico del motor
-    de cálculo (índice, nivel, puntajes por dimensión, código del perfil
-    cultural) con el contenido narrativo que redacta trust4p-servicio-agente
-    a partir de ese resultado (HU-038)."""
+    """RF-12 a RF-16, ADR-005, ASR-02: el resultado determinístico del motor
+    de cálculo (indice_global, nivel, puntaje y código de perfil cultural)
+    se persiste de inmediato, antes de invocar al agente — ver
+    Diagnostico.registrar_resultado_calculado(). Los campos narrativos
+    (observacion, descripcion, lienzo_negocio, sintesis) los añade
+    trust4p-servicio-agente y pueden quedar en None si el agente agota sus
+    reintentos sin responder (el diagnóstico queda 'fallido' pero el
+    resultado numérico ya calculado sigue siendo consultable)."""
 
     indice_global: Decimal
     nivel: int
-    nivel_nombre: str
     nivel_descripcion: str
     dimensiones: list[DimensionResultado]
-    perfil_cultural_codigo: str
-    perfil_cultura_descripcion: str
-    dimensiones_observaciones: dict[str, str]
-    lienzo_negocio: dict[str, str]
-    sintesis: str
+    perfil_cultura: PerfilCulturaResultado
+    lienzo_negocio: Optional[dict[str, str]] = None
+    sintesis: Optional[str] = None
+    generado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
 class Recomendacion:
-    dimension_codigo: str
+    """RF-16/RF-17/RF-21: conviven en el mismo arreglo recomendaciones
+    generadas por el agente y registradas manualmente por un consultor
+    (HU-022, Iteración 4) — origen y autor_id distinguen su procedencia
+    desde ya para que esa historia no requiera migrar el esquema."""
+
+    origen: str  # "agente" | "consultor"
     titulo: str
     contenido: str
-    prioridad: int
+    dimension_codigo: Optional[str] = None
+    autor_id: Optional[str] = None
+    prioridad: Optional[int] = None
+    visible: bool = True
+    creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -128,27 +146,54 @@ class Diagnostico:
         self.estado = "completado"
         self.completado_en = datetime.now(timezone.utc)
 
+    def registrar_resultado_calculado(self, resultado: ResultadoDiagnostico) -> None:
+        """ASR-02: persiste el resultado determinístico (índice, nivel,
+        puntaje por dimensión, código de perfil cultural) ANTES de invocar
+        al agente. El orden importa: si el servicio de inferencia falla
+        después de este punto, el resultado numérico ya calculado no se
+        pierde — solo queda pendiente la interpretación narrativa."""
+        if self.estado != "completado":
+            raise ValueError(
+                f"El diagnóstico debe estar completado para calcular su resultado (estado actual: {self.estado})"
+            )
+        self.resultado = resultado
+
     def marcar_evaluado(
-        self, resultado: ResultadoDiagnostico, recomendaciones: list[Recomendacion]
+        self,
+        perfil_cultura_descripcion: str,
+        dimensiones_observaciones: dict[str, str],
+        lienzo_negocio: dict[str, str],
+        sintesis: str,
+        recomendaciones: list[Recomendacion],
     ) -> None:
-        """RF-36 a RF-40 (HU-038): registra el resultado final una vez que
-        trust4p-servicio-agente devolvió el contenido narrativo sobre el
-        resultado calculado (ADR-005). Solo procede desde 'completado': un
-        diagnóstico fallido no se reintenta automáticamente."""
+        """RF-36 a RF-40 (HU-038): añade el contenido narrativo que redactó
+        trust4p-servicio-agente sobre el resultado determinístico ya
+        persistido por registrar_resultado_calculado(). Solo procede desde
+        'completado' y requiere que ese resultado exista."""
         if self.estado != "completado":
             raise ValueError(
                 f"El diagnóstico debe estar completado para evaluarse (estado actual: {self.estado})"
             )
-        self.estado = "evaluado"
-        self.resultado = resultado
+        if self.resultado is None:
+            raise ValueError(
+                "No se puede evaluar un diagnóstico sin un resultado calculado previamente"
+            )
+        self.resultado.perfil_cultura.descripcion = perfil_cultura_descripcion
+        for dimension in self.resultado.dimensiones:
+            if dimension.codigo in dimensiones_observaciones:
+                dimension.observacion = dimensiones_observaciones[dimension.codigo]
+        self.resultado.lienzo_negocio = lienzo_negocio
+        self.resultado.sintesis = sintesis
         self.recomendaciones = recomendaciones
+        self.estado = "evaluado"
         self.evaluado_en = datetime.now(timezone.utc)
 
     def marcar_fallido(self, motivo: str) -> None:
-        """RF-40: si el agente no logra producir una respuesta válida tras
-        sus reintentos, o la evaluación no puede completarse por otra razón,
-        el diagnóstico queda en 'fallido' en vez de quedar completado sin
-        resultado de forma indefinida."""
+        """RF-40/ASR-02: si el agente no logra producir una respuesta válida
+        tras sus reintentos, el diagnóstico queda en 'fallido' — pero el
+        resultado determinístico ya persistido por
+        registrar_resultado_calculado() (si llegó a calcularse) permanece
+        intacto y consultable; solo falta la interpretación."""
         if self.estado != "completado":
             raise ValueError(
                 f"El diagnóstico debe estar completado para marcarse como fallido (estado actual: {self.estado})"

@@ -235,3 +235,28 @@ def test_marcar_fallido_sin_estar_completado_falla():
     diagnostico = crear_diagnostico_prueba(estado="borrador")
     with pytest.raises(ValueError):
         diagnostico.marcar_fallido("motivo cualquiera")
+
+
+def test_marcar_cerrado_desde_evaluado():
+    diagnostico = crear_diagnostico_prueba(estado="evaluado")
+    diagnostico.marcar_cerrado()
+    assert diagnostico.estado == "cerrado"
+    assert diagnostico.cerrado_en is not None
+
+
+def test_marcar_cerrado_desde_fallido():
+    diagnostico = crear_diagnostico_prueba(estado="fallido")
+    diagnostico.marcar_cerrado()
+    assert diagnostico.estado == "cerrado"
+
+
+def test_marcar_cerrado_desde_completado_falla():
+    diagnostico = crear_diagnostico_prueba(estado="completado")
+    with pytest.raises(ValueError):
+        diagnostico.marcar_cerrado()
+
+
+def test_marcar_cerrado_desde_borrador_falla():
+    diagnostico = crear_diagnostico_prueba(estado="borrador")
+    with pytest.raises(ValueError):
+        diagnostico.marcar_cerrado()

@@ -1,7 +1,10 @@
+from src.aplicacion.servicios.notificar import enviar_notificacion
 from src.dominio.entidades.empresa import Empresa, Sector
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
 from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
+from src.dominio.puertos.repositorio_notificacion import \
+    RepositorioNotificacion
 from src.dominio.puertos.repositorio_solicitud import RepositorioSolicitud
 from src.dominio.puertos.repositorio_token import RepositorioToken
 from src.dominio.puertos.servicio_correo import ServicioCorreo
@@ -18,11 +21,13 @@ class ResolverSolicitud:
         repo_empresa: RepositorioEmpresa,
         repo_token: RepositorioToken,
         servicio_correo: ServicioCorreo,
+        repo_notificacion: RepositorioNotificacion,
     ):
         self._solicitudes = repo_solicitud
         self._empresas = repo_empresa
         self._tokens = repo_token
         self._correo = servicio_correo
+        self._notificaciones = repo_notificacion
 
     async def aprobar(self, solicitud_id: str, sector: Sector) -> tuple[Empresa, str]:
         solicitud = await self._solicitudes.obtener_por_id(solicitud_id)
@@ -44,10 +49,14 @@ class ResolverSolicitud:
         )
         await self._tokens.guardar(token, codigo)
 
-        await self._correo.enviar(
-            destinatario=solicitud.correo_solicitante,
+        await enviar_notificacion(
+            self._correo,
+            self._notificaciones,
+            usuario_id=None,
+            correo_destino=solicitud.correo_solicitante,
+            tipo="invitacion",
             asunto="Trust 4P - Invitación para completar tu registro",
-            cuerpo=(
+            contenido=(
                 f"Hola {solicitud.nombre_solicitante},\n\n"
                 f"Tu solicitud de acceso para {empresa.nombre} fue aprobada. "
                 f"Usa el siguiente código para completar tu registro: {codigo}"

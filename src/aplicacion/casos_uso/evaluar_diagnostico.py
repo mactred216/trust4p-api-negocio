@@ -1,4 +1,5 @@
-from src.dominio.entidades.diagnostico import (DimensionResultado,
+from src.aplicacion.servicios.notificar import enviar_notificacion
+from src.dominio.entidades.diagnostico import (Diagnostico, DimensionResultado,
                                                PerfilCulturaResultado,
                                                ResultadoDiagnostico)
 from src.dominio.puertos.cliente_servicio_agente import (ClienteServicioAgente,
@@ -6,6 +7,10 @@ from src.dominio.puertos.cliente_servicio_agente import (ClienteServicioAgente,
 from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
+from src.dominio.puertos.repositorio_notificacion import \
+    RepositorioNotificacion
+from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
+from src.dominio.puertos.servicio_correo import ServicioCorreo
 from src.dominio.servicios.motor_calculo import (RubricaNoCubreElIndice,
                                                  calcular_resultado)
 
@@ -20,17 +25,24 @@ class EvaluarDiagnostico:
     ejecuta en segundo plano tras completar el diagnóstico (ASR-02:
     interpretación encolada y procesada de forma asíncrona), por lo que no
     tiene a quién reportarle una excepción: todo fallo se resuelve dejando
-    el diagnóstico en un estado consultable."""
+    el diagnóstico en un estado consultable y notificando por correo
+    (RF-45: al representante si se evaluó; RF-38: al administrador si no)."""
 
     def __init__(
         self,
         repo_diagnostico: RepositorioDiagnostico,
         repo_modelo_madurez: RepositorioModeloMadurez,
         cliente_agente: ClienteServicioAgente,
+        repo_usuario: RepositorioUsuario,
+        servicio_correo: ServicioCorreo,
+        repo_notificacion: RepositorioNotificacion,
     ):
         self._diagnosticos = repo_diagnostico
         self._modelos = repo_modelo_madurez
         self._cliente_agente = cliente_agente
+        self._usuarios = repo_usuario
+        self._correo = servicio_correo
+        self._notificaciones = repo_notificacion
 
     async def ejecutar(self, diagnostico_id: str) -> None:
         diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
@@ -43,6 +55,7 @@ class EvaluarDiagnostico:
                 "La versión del modelo de madurez aplicada a este diagnóstico ya no existe"
             )
             await self._diagnosticos.actualizar(diagnostico)
+            await self._notificar_fallido(diagnostico)
             return
 
         try:
@@ -55,6 +68,7 @@ class EvaluarDiagnostico:
             # explicación.
             diagnostico.marcar_fallido(str(e))
             await self._diagnosticos.actualizar(diagnostico)
+            await self._notificar_fallido(diagnostico)
             return
 
         # ASR-02: se calcula y persiste el índice antes de invocar al
@@ -83,6 +97,7 @@ class EvaluarDiagnostico:
         except ServicioAgenteError as e:
             diagnostico.marcar_fallido(str(e))
             await self._diagnosticos.actualizar(diagnostico)
+            await self._notificar_fallido(diagnostico)
             return
 
         diagnostico.marcar_evaluado(
@@ -93,3 +108,38 @@ class EvaluarDiagnostico:
             recomendaciones=respuesta_agente.recomendaciones,
         )
         await self._diagnosticos.actualizar(diagnostico)
+        await self._notificar_evaluado(diagnostico)
+
+    async def _notificar_evaluado(self, diagnostico: Diagnostico) -> None:
+        representante = await self._usuarios.obtener_por_id(diagnostico.usuario_id)
+        if representante is None:
+            return
+        await enviar_notificacion(
+            self._correo,
+            self._notificaciones,
+            usuario_id=representante.id,
+            correo_destino=representante.correo,
+            tipo="diagnostico_evaluado",
+            asunto="Trust 4P - Su diagnóstico ya tiene resultado",
+            contenido=(
+                f"Hola {representante.nombres},\n\n"
+                f"El diagnóstico N.° {diagnostico.consecutivo} de {diagnostico.empresa_nombre} "
+                "ya fue evaluado. Ingrese a la plataforma para consultar el resultado."
+            ),
+        )
+
+    async def _notificar_fallido(self, diagnostico: Diagnostico) -> None:
+        administradores = await self._usuarios.listar_por_rol("administrador")
+        for administrador in administradores:
+            await enviar_notificacion(
+                self._correo,
+                self._notificaciones,
+                usuario_id=administrador.id,
+                correo_destino=administrador.correo,
+                tipo="diagnostico_fallido",
+                asunto="Trust 4P - Un diagnóstico quedó pendiente de evaluación",
+                contenido=(
+                    f"El diagnóstico N.° {diagnostico.consecutivo} de "
+                    f"{diagnostico.empresa_nombre} no pudo evaluarse: {diagnostico.motivo_fallo}"
+                ),
+            )

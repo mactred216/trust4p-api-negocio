@@ -1,0 +1,36 @@
+from src.aplicacion.casos_uso.gestionar_diagnostico import (
+    AccesoNoAutorizado, DiagnosticoNoEncontrado)
+from src.dominio.entidades.diagnostico import Diagnostico
+from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
+from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
+
+
+class DiagnosticoSinResultado(Exception):
+    """RF-17: no hay un resultado evaluado sobre el cual generar el informe."""
+
+
+class GenerarInformeDiagnostico:
+    """RF-17 (HU-018): valida que el diagnóstico pertenezca a la empresa del
+    usuario y que ya tenga un resultado evaluado completo. La generación del
+    archivo PDF en sí vive en infraestructura/informes — este caso de uso
+    solo decide si procede."""
+
+    def __init__(
+        self, repo_diagnostico: RepositorioDiagnostico, repo_usuario: RepositorioUsuario
+    ):
+        self._diagnosticos = repo_diagnostico
+        self._usuarios = repo_usuario
+
+    async def ejecutar(self, usuario_id: str, diagnostico_id: str) -> Diagnostico:
+        diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
+        if diagnostico is None:
+            raise DiagnosticoNoEncontrado()
+
+        usuario = await self._usuarios.obtener_por_id(usuario_id)
+        if usuario is None or usuario.empresa_id != diagnostico.empresa_id:
+            raise AccesoNoAutorizado()
+
+        if diagnostico.estado != "evaluado" or diagnostico.resultado is None:
+            raise DiagnosticoSinResultado()
+
+        return diagnostico

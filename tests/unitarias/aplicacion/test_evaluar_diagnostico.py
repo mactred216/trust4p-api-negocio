@@ -134,6 +134,39 @@ async def test_evaluar_diagnostico_falla_del_agente_marca_fallido_pero_conserva_
 
 
 @pytest.mark.asyncio
+async def test_evaluar_diagnostico_con_indice_fuera_de_rubrica_marca_fallido():
+    """Hallazgo en prueba manual end-to-end: una rúbrica que no cubre el
+    índice calculado (por configuración incompleta del modelo, o por una
+    respuesta numérica fuera de la escala) no debe colgar el diagnóstico en
+    'completado' para siempre — debe quedar 'fallido' con el motivo."""
+    diagnostico = crear_diagnostico_prueba()
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    modelo = crear_modelo_prueba()
+    modelo.niveles = [
+        Nivel(
+            nivel=1,
+            nombre="Único",
+            descripcion="No cubre el índice resultante",
+            umbral_min=Decimal("1"),
+            umbral_max=Decimal("4"),
+        )
+    ]
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = modelo
+    cliente_agente = AsyncMock()
+
+    caso_uso = EvaluarDiagnostico(repo_diagnostico, repo_modelo, cliente_agente)
+    await caso_uso.ejecutar("diag-1")
+
+    assert diagnostico.estado == "fallido"
+    assert "índice calculado" in diagnostico.motivo_fallo
+    assert diagnostico.resultado is None
+    cliente_agente.evaluar.assert_not_called()
+    repo_diagnostico.actualizar.assert_called_once_with(diagnostico)
+
+
+@pytest.mark.asyncio
 async def test_evaluar_diagnostico_sin_version_de_modelo_marca_fallido():
     diagnostico = crear_diagnostico_prueba()
     repo_diagnostico = AsyncMock()

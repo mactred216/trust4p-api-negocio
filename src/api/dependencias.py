@@ -529,3 +529,26 @@ def obtener_caso_uso_evaluar_diagnostico(
     ),
 ) -> EvaluarDiagnostico:
     return EvaluarDiagnostico(repo_diagnostico, repo_modelo_madurez, cliente_agente)
+
+
+from src.aplicacion.casos_uso.consultar_evolucion import \
+    ConsultarEvolucionDiagnosticos
+from src.aplicacion.casos_uso.generar_informe import GenerarInformeDiagnostico
+
+
+def obtener_caso_uso_generar_informe(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> GenerarInformeDiagnostico:
+    return GenerarInformeDiagnostico(repo_diagnostico, repo_usuario)
+
+
+def obtener_caso_uso_consultar_evolucion(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> ConsultarEvolucionDiagnosticos:
+    return ConsultarEvolucionDiagnosticos(repo_diagnostico, repo_usuario)

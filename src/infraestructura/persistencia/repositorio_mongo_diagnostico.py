@@ -60,6 +60,13 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
         documentos = await cursor.to_list(length=None)
         return [self._a_entidad(doc) for doc in documentos]
 
+    async def listar_por_modelo_version(self, modelo_version: str) -> list[Diagnostico]:
+        cursor = self._coleccion.find({"modelo_version": modelo_version}).sort(
+            [("empresa_id", 1), ("consecutivo", 1)]
+        )
+        documentos = await cursor.to_list(length=None)
+        return [self._a_entidad(doc) for doc in documentos]
+
     def _a_entidad(self, doc: dict) -> Diagnostico:
         return Diagnostico(
             id=str(doc["_id"]),

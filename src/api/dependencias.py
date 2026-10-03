@@ -657,3 +657,18 @@ def obtener_caso_uso_exportar_datos_agregados(
     ),
 ) -> ExportarDatosAgregados:
     return ExportarDatosAgregados(repo_empresa, repo_diagnostico)
+
+
+from src.aplicacion.casos_uso.simular_pesos import \
+    SimularPesosModelo  # noqa: E402
+
+
+def obtener_caso_uso_simular_pesos(
+    repo_modelo: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+) -> SimularPesosModelo:
+    return SimularPesosModelo(repo_modelo, repo_diagnostico)

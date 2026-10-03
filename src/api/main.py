@@ -3,8 +3,8 @@ from fastapi import FastAPI
 
 from src.api.routers import (auditoria, autenticacion, consultoria,
                              diagnosticos, empresas, indicadores,
-                             modelos_madurez, perfil, roles, solicitudes,
-                             usuarios)
+                             modelos_madurez, perfil, roles, simulaciones,
+                             solicitudes, usuarios)
 from src.infraestructura.persistencia.conexion import obtener_cliente
 
 load_dotenv()
@@ -22,6 +22,7 @@ app.include_router(perfil.router, prefix="/v1")
 app.include_router(diagnosticos.router, prefix="/v1")
 app.include_router(consultoria.router, prefix="/v1")
 app.include_router(indicadores.router, prefix="/v1")
+app.include_router(simulaciones.router, prefix="/v1")
 
 
 @app.get("/salud")

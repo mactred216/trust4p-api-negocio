@@ -30,3 +30,8 @@ class RepositorioDiagnostico(ABC):
 
     @abstractmethod
     async def listar_por_empresa(self, empresa_id: str) -> list[Diagnostico]: ...
+
+    @abstractmethod
+    async def listar_por_modelo_version(self, modelo_version: str) -> list[Diagnostico]:
+        """RF-35: diagnósticos históricos calculados con una versión del modelo."""
+        ...

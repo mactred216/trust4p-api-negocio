@@ -211,3 +211,18 @@ async def test_actualizar_persiste_diagnostico_fallido_conservando_resultado(db)
     assert recuperado.resultado.indice_global == Decimal("7.2")
     assert recuperado.resultado.perfil_cultura.codigo == "ENFP"
     assert recuperado.resultado.sintesis is None
+
+
+@pytest.mark.asyncio
+async def test_listar_por_modelo_version_filtra_por_version(db):
+    repo = RepositorioMongoDiagnostico(db)
+    await repo.guardar(crear_diagnostico_prueba(empresa_id="emp-a", consecutivo=1))
+    await repo.guardar(crear_diagnostico_prueba(empresa_id="emp-b", consecutivo=1))
+    otra_version = crear_diagnostico_prueba(empresa_id="emp-c", consecutivo=1)
+    otra_version.modelo_version = "v2"
+    await repo.guardar(otra_version)
+
+    diagnosticos = await repo.listar_por_modelo_version("v1")
+
+    assert sorted(d.empresa_id for d in diagnosticos) == ["emp-a", "emp-b"]
+    assert await repo.listar_por_modelo_version("v-inexistente") == []

@@ -586,3 +586,51 @@ def obtener_caso_uso_consultar_evolucion(
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
 ) -> ConsultarEvolucionDiagnosticos:
     return ConsultarEvolucionDiagnosticos(repo_diagnostico, repo_usuario)
+
+
+from src.aplicacion.casos_uso.gestionar_consultoria import (
+    ConsultarDiagnosticoAsignado, ListarDiagnosticosDeEmpresaAsignada,
+    ListarEmpresasAsignadas, RegistrarRecomendacion)
+
+
+def obtener_caso_uso_listar_empresas_asignadas(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+) -> ListarEmpresasAsignadas:
+    return ListarEmpresasAsignadas(repo_usuario, repo_empresa, repo_diagnostico)
+
+
+def obtener_caso_uso_listar_diagnosticos_empresa_asignada(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+) -> ListarDiagnosticosDeEmpresaAsignada:
+    return ListarDiagnosticosDeEmpresaAsignada(repo_usuario, repo_diagnostico)
+
+
+def obtener_caso_uso_consultar_diagnostico_asignado(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+) -> ConsultarDiagnosticoAsignado:
+    return ConsultarDiagnosticoAsignado(repo_usuario, repo_diagnostico)
+
+
+def obtener_caso_uso_registrar_recomendacion(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
+) -> RegistrarRecomendacion:
+    return RegistrarRecomendacion(
+        repo_usuario, repo_diagnostico, servicio_correo, repo_notificacion
+    )

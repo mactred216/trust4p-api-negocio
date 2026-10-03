@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from src.api.routers import (auditoria, autenticacion, consultoria,
+from src.api.routers import (auditoria, autenticacion, consultoria, demo,
                              diagnosticos, empresas, indicadores,
                              modelos_madurez, perfil, roles, simulaciones,
                              solicitudes, usuarios)
@@ -23,6 +23,7 @@ app.include_router(diagnosticos.router, prefix="/v1")
 app.include_router(consultoria.router, prefix="/v1")
 app.include_router(indicadores.router, prefix="/v1")
 app.include_router(simulaciones.router, prefix="/v1")
+app.include_router(demo.router, prefix="/v1")
 
 
 @app.get("/salud")

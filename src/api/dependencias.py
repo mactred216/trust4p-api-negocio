@@ -672,3 +672,23 @@ def obtener_caso_uso_simular_pesos(
     ),
 ) -> SimularPesosModelo:
     return SimularPesosModelo(repo_modelo, repo_diagnostico)
+
+
+from src.aplicacion.casos_uso.diagnostico_demo import (  # noqa: E402
+    CalcularResultadoDemo, ObtenerPreguntasDemo)
+
+
+def obtener_caso_uso_obtener_preguntas_demo(
+    repo_modelo: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
+) -> ObtenerPreguntasDemo:
+    return ObtenerPreguntasDemo(repo_modelo)
+
+
+def obtener_caso_uso_calcular_resultado_demo(
+    repo_modelo: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
+) -> CalcularResultadoDemo:
+    return CalcularResultadoDemo(repo_modelo)

@@ -634,3 +634,26 @@ def obtener_caso_uso_registrar_recomendacion(
     return RegistrarRecomendacion(
         repo_usuario, repo_diagnostico, servicio_correo, repo_notificacion
     )
+
+
+from src.aplicacion.casos_uso.gestionar_indicadores import (  # noqa: E402
+    ConsultarIndicadoresAgregados, ExportarDatosAgregados)
+
+
+def obtener_caso_uso_consultar_indicadores(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+) -> ConsultarIndicadoresAgregados:
+    return ConsultarIndicadoresAgregados(repo_usuario, repo_empresa, repo_diagnostico)
+
+
+def obtener_caso_uso_exportar_datos_agregados(
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+) -> ExportarDatosAgregados:
+    return ExportarDatosAgregados(repo_empresa, repo_diagnostico)

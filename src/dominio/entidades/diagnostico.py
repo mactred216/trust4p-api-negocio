@@ -201,6 +201,44 @@ class Diagnostico:
         self.estado = "fallido"
         self.motivo_fallo = motivo
 
+    def agregar_recomendacion_consultor(
+        self,
+        autor_id: str,
+        titulo: str,
+        contenido: str,
+        dimension_codigo: Optional[str] = None,
+        visible: bool = True,
+    ) -> Recomendacion:
+        """RF-21 (HU-022): el consultor complementa el resultado automático
+        con recomendaciones propias. Solo sobre un diagnóstico ya evaluado o
+        fallido, y nunca sobre uno cerrado (RF-23: el cierre bloquea nuevas
+        recomendaciones, HU-024 CA-01)."""
+        if self.estado == ESTADO_CERRADO:
+            raise ValueError(
+                "El diagnóstico está cerrado y no admite nuevas recomendaciones"
+            )
+        if self.estado not in ("evaluado", "fallido"):
+            raise ValueError(
+                f"El diagnóstico aún no admite recomendaciones (estado actual: {self.estado})"
+            )
+        if dimension_codigo is not None and (
+            self.resultado is None
+            or dimension_codigo not in {d.codigo for d in self.resultado.dimensiones}
+        ):
+            raise ValueError(
+                f"La dimensión '{dimension_codigo}' no pertenece a este diagnóstico"
+            )
+        recomendacion = Recomendacion(
+            origen="consultor",
+            titulo=titulo,
+            contenido=contenido,
+            dimension_codigo=dimension_codigo,
+            autor_id=autor_id,
+            visible=visible,
+        )
+        self.recomendaciones.append(recomendacion)
+        return recomendacion
+
     def marcar_cerrado(self) -> None:
         """RF-23 (HU-024): el consultor cierra el diagnóstico una vez
         concluido el acompañamiento. Procede desde 'evaluado' o 'fallido' —

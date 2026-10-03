@@ -83,6 +83,7 @@ class RecomendacionResponse(BaseModel):
     contenido: str
     prioridad: Optional[int]
     visible: bool
+    autor_id: Optional[str]
     creado_en: datetime
 
 
@@ -277,7 +278,10 @@ def _cuestionario_a_response(modelo) -> CuestionarioResponse:
     )
 
 
-def _a_response(diagnostico) -> DiagnosticoResponse:
+def _a_response(diagnostico, incluir_ocultas: bool = False) -> DiagnosticoResponse:
+    """RF-16/RF-21: el representante solo ve las recomendaciones marcadas
+    visibles; el consultor (incluir_ocultas=True) ve también las que aún no
+    ha compartido con la empresa."""
     return DiagnosticoResponse(
         id=diagnostico.id,
         empresa_id=diagnostico.empresa_id,
@@ -307,9 +311,11 @@ def _a_response(diagnostico) -> DiagnosticoResponse:
                 contenido=r.contenido,
                 prioridad=r.prioridad,
                 visible=r.visible,
+                autor_id=r.autor_id,
                 creado_en=r.creado_en,
             )
             for r in diagnostico.recomendaciones
+            if incluir_ocultas or r.visible
         ],
         motivo_fallo=diagnostico.motivo_fallo,
         iniciado_en=diagnostico.iniciado_en,

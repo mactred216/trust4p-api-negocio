@@ -260,3 +260,50 @@ def test_marcar_cerrado_desde_borrador_falla():
     diagnostico = crear_diagnostico_prueba(estado="borrador")
     with pytest.raises(ValueError):
         diagnostico.marcar_cerrado()
+
+
+def test_agregar_recomendacion_consultor_desde_evaluado():
+    diagnostico = crear_diagnostico_prueba(estado="completado")
+    diagnostico.registrar_resultado_calculado(crear_resultado_calculado_prueba())
+    diagnostico.estado = "evaluado"
+
+    recomendacion = diagnostico.agregar_recomendacion_consultor(
+        autor_id="consultor-1",
+        titulo="T",
+        contenido="C",
+        dimension_codigo="innovacion",
+    )
+
+    assert recomendacion.origen == "consultor"
+    assert recomendacion.autor_id == "consultor-1"
+    assert recomendacion.visible is True
+    assert diagnostico.recomendaciones == [recomendacion]
+
+
+def test_agregar_recomendacion_consultor_desde_fallido():
+    diagnostico = crear_diagnostico_prueba(estado="fallido")
+    recomendacion = diagnostico.agregar_recomendacion_consultor("c-1", "T", "C")
+    assert recomendacion.dimension_codigo is None
+
+
+def test_agregar_recomendacion_consultor_en_cerrado_falla():
+    diagnostico = crear_diagnostico_prueba(estado="cerrado")
+    with pytest.raises(ValueError, match="cerrado"):
+        diagnostico.agregar_recomendacion_consultor("c-1", "T", "C")
+
+
+@pytest.mark.parametrize("estado", ["borrador", "completado"])
+def test_agregar_recomendacion_consultor_antes_de_evaluar_falla(estado):
+    diagnostico = crear_diagnostico_prueba(estado=estado)
+    with pytest.raises(ValueError):
+        diagnostico.agregar_recomendacion_consultor("c-1", "T", "C")
+
+
+def test_agregar_recomendacion_consultor_con_dimension_ajena_falla():
+    diagnostico = crear_diagnostico_prueba(estado="completado")
+    diagnostico.registrar_resultado_calculado(crear_resultado_calculado_prueba())
+    diagnostico.estado = "evaluado"
+    with pytest.raises(ValueError, match="dimensión"):
+        diagnostico.agregar_recomendacion_consultor(
+            "c-1", "T", "C", dimension_codigo="otra"
+        )

@@ -492,8 +492,11 @@ def obtener_caso_uso_completar_diagnostico(
         obtener_repositorio_diagnostico
     ),
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_modelo: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
 ) -> CompletarDiagnostico:
-    return CompletarDiagnostico(repo_diagnostico, repo_usuario)
+    return CompletarDiagnostico(repo_diagnostico, repo_usuario, repo_modelo)
 
 
 def obtener_caso_uso_listar_diagnosticos_empresa(

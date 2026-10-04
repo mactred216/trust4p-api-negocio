@@ -243,15 +243,40 @@ class ObtenerCuestionario:
         return modelo
 
 
+class PreguntasPendientes(ValueError):
+    """RF-07 / HU-008 CA-02: señala cuáles preguntas obligatorias faltan."""
+
+    def __init__(self, codigos: list[str]):
+        self.codigos = codigos
+        super().__init__(
+            "Faltan preguntas obligatorias por responder: " + ", ".join(codigos)
+        )
+
+
 class CompletarDiagnostico:
     """RF-07 paso 5: cierra la etapa de respuestas (borrador -> completado)
     una vez respondidas todas las obligatorias aplicables."""
 
     def __init__(
-        self, repo_diagnostico: RepositorioDiagnostico, repo_usuario: RepositorioUsuario
+        self,
+        repo_diagnostico: RepositorioDiagnostico,
+        repo_usuario: RepositorioUsuario,
+        repo_modelo: Optional[RepositorioModeloMadurez] = None,
     ):
         self._diagnosticos = repo_diagnostico
         self._usuarios = repo_usuario
+        self._modelos = repo_modelo
+
+    async def _pendientes(self, diagnostico: Diagnostico) -> list[str]:
+        modelo = await self._modelos.obtener_por_version(diagnostico.modelo_version)
+        if modelo is None:
+            return []
+        respondidas = {r.pregunta_codigo for r in diagnostico.respuestas}
+        return sorted(
+            p.codigo
+            for p in preguntas_aplicables(modelo.preguntas, diagnostico.respuestas)
+            if p.obligatoria and p.codigo not in respondidas
+        )
 
     async def ejecutar(self, usuario_id: str, diagnostico_id: str) -> Diagnostico:
         diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
@@ -262,7 +287,14 @@ class CompletarDiagnostico:
         if usuario is None or usuario.empresa_id != diagnostico.empresa_id:
             raise AccesoNoAutorizado()
 
-        diagnostico.marcar_completado()
+        try:
+            diagnostico.marcar_completado()
+        except ValueError:
+            if self._modelos is not None and diagnostico.estado == "borrador":
+                pendientes = await self._pendientes(diagnostico)
+                if pendientes:
+                    raise PreguntasPendientes(pendientes)
+            raise
         await self._diagnosticos.actualizar(diagnostico)
         return diagnostico
 

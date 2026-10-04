@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -63,5 +64,61 @@ async def sembrar_permisos(db: AsyncIOMotorDatabase) -> None:
             await db["sesiones"].delete_many({"rol_codigo": rol})
 
 
+registro = logging.getLogger("trust4p.indices")
+
+ASC, DESC = 1, -1
+
+# Diccionario de Datos, hoja 3 (indices). Solo las colecciones de api-negocio;
+# las de servicio-agente (documentos, fragmentos, ejecuciones) las crea ese
+# servicio. El token de invitacion/restablecimiento se guarda como codigo_hash.
+INDICES: list[tuple[str, list[tuple[str, int]], dict]] = [
+    ("sectores", [("codigo", ASC)], {"unique": True}),
+    ("permisos", [("codigo", ASC)], {"unique": True}),
+    ("roles", [("codigo", ASC)], {"unique": True}),
+    ("usuarios", [("correo", ASC)], {"unique": True}),
+    ("usuarios", [("empresa_id", ASC)], {}),
+    ("usuarios", [("asignaciones.empresa_id", ASC)], {}),
+    ("sesiones", [("token_hash", ASC)], {"unique": True}),
+    ("sesiones", [("expira_en", ASC)], {"expireAfterSeconds": 0}),
+    ("tokens_verificacion", [("codigo_hash", ASC)], {"unique": True}),
+    ("tokens_verificacion", [("expira_en", ASC)], {"expireAfterSeconds": 0}),
+    # unico "disperso": solo entre empresas que si tienen NIT (el campo puede
+    # guardarse como null y un indice sparse trataria null como un valor)
+    (
+        "empresas",
+        [("nit", ASC)],
+        {"unique": True, "partialFilterExpression": {"nit": {"$type": "string"}}},
+    ),
+    ("empresas", [("sector.id", ASC), ("activo", ASC)], {}),
+    ("solicitudes_acceso", [("estado", ASC), ("creado_en", DESC)], {}),
+    ("solicitudes_acceso", [("correo_solicitante", ASC)], {}),
+    ("modelos_madurez", [("version", ASC)], {"unique": True}),
+    ("modelos_madurez", [("publicado", ASC), ("publicado_en", DESC)], {}),
+    ("diagnosticos", [("empresa_id", ASC), ("consecutivo", ASC)], {"unique": True}),
+    ("diagnosticos", [("empresa_id", ASC), ("estado", ASC)], {}),
+    ("diagnosticos", [("resultado.nivel", ASC), ("empresa_id", ASC)], {}),
+    ("diagnosticos", [("usuario_id", ASC)], {}),
+    ("notificaciones", [("enviada_en", ASC)], {"sparse": True}),
+    ("auditoria", [("entidad", ASC), ("entidad_id", ASC)], {}),
+    ("auditoria", [("registrado_en", DESC)], {}),
+]
+
+
+async def crear_indices(db: AsyncIOMotorDatabase) -> list[str]:
+    """Idempotente. Crea los indices del Diccionario de Datos. Un indice que no
+    se pueda crear (p. ej. un unico sobre datos que ya tienen duplicados) se
+    registra y devuelve en la lista de problemas, sin detener el arranque."""
+    problemas = []
+    for coleccion, claves, opciones in INDICES:
+        try:
+            await db[coleccion].create_index(claves, **opciones)
+        except Exception as e:
+            descripcion = f"{coleccion}{[c for c, _ in claves]}: {e}"
+            registro.warning("No se pudo crear el indice %s", descripcion)
+            problemas.append(descripcion)
+    return problemas
+
+
 async def inicializar_base_datos(db: AsyncIOMotorDatabase) -> None:
     await sembrar_permisos(db)
+    await crear_indices(db)

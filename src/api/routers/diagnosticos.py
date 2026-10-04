@@ -30,7 +30,8 @@ from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, CerrarDiagnostico, CompletarDiagnostico,
     ConsultarDiagnostico, DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado,
     GuardarRespuesta, IniciarDiagnostico, ListarDiagnosticosDeEmpresa,
-    NoHayVersionVigente, ObtenerCuestionario, ObtenerDiagnosticoEnCurso)
+    NoHayVersionVigente, ObtenerCuestionario, ObtenerDiagnosticoEnCurso,
+    PreguntasPendientes)
 from src.infraestructura.informes.generador_informe_pdf import \
     generar_informe_pdf
 
@@ -588,6 +589,11 @@ async def completar_diagnostico(
     except AccesoNoAutorizado:
         raise HTTPException(
             status_code=403, detail="Este diagnóstico no pertenece a su empresa"
+        )
+    except PreguntasPendientes as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"mensaje": str(e), "preguntas_pendientes": e.codigos},
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

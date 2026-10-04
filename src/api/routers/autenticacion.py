@@ -3,12 +3,15 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 from src.api.dependencias import (obtener_caso_uso_completar_registro,
                                   obtener_caso_uso_iniciar_sesion)
+from src.api.middleware.limites import (limite_envio_correo, limite_login,
+                                        limite_token)
 from src.api.validadores_comunes import clave_cumple_politica, texto_no_vacio
 from src.aplicacion.casos_uso.completar_registro import (AutorizacionRequerida,
                                                          CompletarRegistro,
                                                          TokenInvalido)
 from src.aplicacion.casos_uso.iniciar_sesion import (CredencialesInvalidas,
                                                      CuentaBloqueada,
+                                                     CuentaInactiva,
                                                      IniciarSesion)
 
 router = APIRouter(prefix="/auth", tags=["autenticacion"])
@@ -93,6 +96,7 @@ class MensajeResponse(BaseModel):
 @router.post(
     "/login",
     response_model=LoginResponse,
+    dependencies=[Depends(limite_login)],
     summary="Iniciar sesión",
     description="Autentica al usuario y establece la sesión mediante cookie HttpOnly.",
 )
@@ -107,6 +111,11 @@ async def login(
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
     except CuentaBloqueada:
         raise HTTPException(status_code=423, detail="Cuenta bloqueada temporalmente")
+    except CuentaInactiva:
+        raise HTTPException(
+            status_code=403,
+            detail="La empresa asociada a su cuenta está inactiva",
+        )
 
     response.set_cookie(
         key="sesion",
@@ -122,6 +131,7 @@ async def login(
 @router.post(
     "/completar-registro",
     response_model=UsuarioResponse,
+    dependencies=[Depends(limite_token)],
     status_code=201,
     summary="Completar registro por invitación",
     description="Crea la cuenta del usuario a partir de un token de invitación vigente.",
@@ -159,6 +169,7 @@ async def completar_registro(
 @router.post(
     "/solicitar-restablecimiento",
     response_model=MensajeResponse,
+    dependencies=[Depends(limite_envio_correo)],
     summary="Solicitar restablecimiento de contraseña",
     description="Por seguridad, responde el mismo mensaje exista o no el correo registrado.",
 )
@@ -177,6 +188,7 @@ async def solicitar_restablecimiento(
 @router.post(
     "/restablecer-contrasena",
     response_model=MensajeResponse,
+    dependencies=[Depends(limite_token)],
     summary="Restablecer contraseña",
     description="Consume el token de restablecimiento y revoca todas las sesiones activas.",
 )

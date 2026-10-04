@@ -89,7 +89,9 @@ def _a_response(usuario) -> UsuarioResponse:
 async def listar_usuarios(
     empresa_id: Optional[str] = Query(default=None),
     caso_uso: ListarUsuarios = Depends(obtener_caso_uso_listar_usuarios),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "usuarios.gestionar")
+    ),
 ):
     usuarios = await caso_uso.ejecutar(empresa_id=empresa_id)
     return [_a_response(u) for u in usuarios]
@@ -99,7 +101,9 @@ async def listar_usuarios(
 async def consultar_usuario(
     usuario_id: str,
     caso_uso: ConsultarUsuario = Depends(obtener_caso_uso_consultar_usuario),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "usuarios.gestionar")
+    ),
 ):
     try:
         usuario = await caso_uso.ejecutar(usuario_id)
@@ -113,7 +117,9 @@ async def editar_usuario(
     usuario_id: str,
     datos: EditarUsuarioRequest,
     caso_uso: EditarUsuario = Depends(obtener_caso_uso_editar_usuario),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "usuarios.gestionar")
+    ),
 ):
     campos = datos.model_dump(exclude_unset=True)
     try:
@@ -127,7 +133,9 @@ async def editar_usuario(
 async def desactivar_usuario(
     usuario_id: str,
     caso_uso: DesactivarUsuario = Depends(obtener_caso_uso_desactivar_usuario),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "usuarios.gestionar")
+    ),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     if usuario_id == usuario_actual_id:
@@ -155,7 +163,9 @@ async def desactivar_usuario(
 async def reactivar_usuario(
     usuario_id: str,
     caso_uso: ReactivarUsuario = Depends(obtener_caso_uso_reactivar_usuario),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "usuarios.gestionar")
+    ),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -185,7 +195,9 @@ async def reactivar_usuario(
 async def desbloquear_usuario(
     usuario_id: str,
     caso_uso: DesbloquearUsuario = Depends(obtener_caso_uso_desbloquear_usuario),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "usuarios.gestionar")
+    ),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -215,7 +227,9 @@ async def asignar_empresa_a_consultor(
     consultor_id: str,
     datos: AsignacionRequest,
     caso_uso: AsignarConsultor = Depends(obtener_caso_uso_asignar_consultor),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "usuarios.gestionar")
+    ),
 ):
     try:
         await caso_uso.asignar(consultor_id, datos.empresa_id)
@@ -240,7 +254,9 @@ async def finalizar_asignacion(
     consultor_id: str,
     empresa_id: str,
     caso_uso: AsignarConsultor = Depends(obtener_caso_uso_asignar_consultor),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "usuarios.gestionar")
+    ),
 ):
     try:
         await caso_uso.finalizar(consultor_id, empresa_id)

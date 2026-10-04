@@ -40,7 +40,9 @@ async def consultar_auditoria(
     ),
     limite: int = Query(default=50, le=200),
     caso_uso: ConsultarAuditoria = Depends(obtener_caso_uso_consultar_auditoria),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "auditoria.consultar")
+    ),
 ):
     registros = await caso_uso.ejecutar(
         entidad=entidad, entidad_id=entidad_id, usuario_id=usuario_id, limite=limite

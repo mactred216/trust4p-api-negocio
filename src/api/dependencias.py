@@ -13,7 +13,8 @@ from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
                                                          EditarUsuario,
                                                          ListarUsuarios,
                                                          ReactivarUsuario)
-from src.aplicacion.casos_uso.iniciar_sesion import IniciarSesion
+from src.aplicacion.casos_uso.iniciar_sesion import (
+    BloqueoCorreosDesconocidos, IniciarSesion)
 from src.aplicacion.casos_uso.radicar_solicitud import RadicarSolicitud
 from src.aplicacion.casos_uso.resolver_solicitud import ResolverSolicitud
 from src.dominio.puertos.repositorio_token import RepositorioToken
@@ -35,6 +36,9 @@ from src.infraestructura.persistencia.repositorio_mongo_token import \
     RepositorioMongoToken
 from src.infraestructura.persistencia.repositorio_mongo_usuario import \
     RepositorioMongoUsuario
+
+# Estado en memoria compartido entre peticiones (HU-004 CA-02).
+BLOQUEO_CORREOS_DESCONOCIDOS = BloqueoCorreosDesconocidos()
 
 
 def obtener_repositorio_solicitud(
@@ -69,13 +73,6 @@ def obtener_repositorio_sesion(
     db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
 ) -> RepositorioMongoSesion:
     return RepositorioMongoSesion(db)
-
-
-def obtener_caso_uso_iniciar_sesion(
-    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
-    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
-) -> IniciarSesion:
-    return IniciarSesion(repo_usuario, repo_sesion)
 
 
 def obtener_repositorio_empresa(
@@ -692,3 +689,14 @@ def obtener_caso_uso_calcular_resultado_demo(
     ),
 ) -> CalcularResultadoDemo:
     return CalcularResultadoDemo(repo_modelo)
+
+
+def obtener_caso_uso_iniciar_sesion(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+    repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+) -> IniciarSesion:
+    return IniciarSesion(
+        repo_usuario, repo_sesion, repo_rol, repo_empresa, BLOQUEO_CORREOS_DESCONOCIDOS
+    )

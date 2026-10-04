@@ -76,7 +76,7 @@ async def simular_pesos(
     modelo_id: str,
     datos: SimularPesosRequest,
     caso_uso: SimularPesosModelo = Depends(obtener_caso_uso_simular_pesos),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "modelo.simular")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:

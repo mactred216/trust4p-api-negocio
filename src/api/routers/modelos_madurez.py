@@ -477,7 +477,7 @@ def _a_response(modelo) -> ModeloMadurezResponse:
 @router.get("", response_model=list[ModeloMadurezResponse])
 async def listar_modelos(
     caso_uso: ListarModelos = Depends(obtener_caso_uso_listar_modelos),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
 ):
     modelos = await caso_uso.ejecutar()
     return [_a_response(m) for m in modelos]
@@ -487,7 +487,7 @@ async def listar_modelos(
 async def crear_modelo(
     datos: CrearModeloRequest,
     caso_uso: CrearModeloMadurez = Depends(obtener_caso_uso_crear_modelo_madurez),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -518,7 +518,7 @@ async def crear_modelo(
 @router.get("/vigente", response_model=ModeloMadurezResponse)
 async def obtener_version_vigente(
     caso_uso: ObtenerVersionVigente = Depends(obtener_caso_uso_obtener_version_vigente),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
 ):
     try:
         modelo = await caso_uso.ejecutar()
@@ -533,7 +533,7 @@ async def obtener_version_vigente(
 async def consultar_modelo(
     modelo_id: str,
     caso_uso: ConsultarModelo = Depends(obtener_caso_uso_consultar_modelo),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
 ):
     try:
         modelo = await caso_uso.ejecutar(modelo_id)
@@ -549,7 +549,7 @@ async def agregar_dimension(
     modelo_id: str,
     datos: DimensionRequest,
     caso_uso: AgregarDimension = Depends(obtener_caso_uso_agregar_dimension),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -586,7 +586,7 @@ async def editar_dimension(
     codigo: str,
     datos: EditarDimensionRequest,
     caso_uso: EditarDimension = Depends(obtener_caso_uso_editar_dimension),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -621,7 +621,7 @@ async def quitar_dimension(
     modelo_id: str,
     codigo: str,
     caso_uso: QuitarDimension = Depends(obtener_caso_uso_quitar_dimension),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -649,7 +649,7 @@ async def agregar_pregunta(
     modelo_id: str,
     datos: PreguntaRequest,
     caso_uso: AgregarPregunta = Depends(obtener_caso_uso_agregar_pregunta),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -693,7 +693,7 @@ async def editar_pregunta(
     codigo: str,
     datos: EditarPreguntaRequest,
     caso_uso: EditarPregunta = Depends(obtener_caso_uso_editar_pregunta),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -740,7 +740,7 @@ async def desactivar_pregunta(
     modelo_id: str,
     codigo: str,
     caso_uso: DesactivarPregunta = Depends(obtener_caso_uso_desactivar_pregunta),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -768,7 +768,7 @@ async def reactivar_pregunta(
     modelo_id: str,
     codigo: str,
     caso_uso: ReactivarPregunta = Depends(obtener_caso_uso_reactivar_pregunta),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -796,7 +796,7 @@ async def agregar_nivel(
     modelo_id: str,
     datos: NivelRequest,
     caso_uso: AgregarNivel = Depends(obtener_caso_uso_agregar_nivel),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -836,7 +836,7 @@ async def editar_nivel(
     numero_nivel: int,
     datos: EditarNivelRequest,
     caso_uso: EditarNivel = Depends(obtener_caso_uso_editar_nivel),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -880,7 +880,7 @@ async def agregar_eje_perfil_cultural(
     caso_uso: AgregarEjePerfilCultural = Depends(
         obtener_caso_uso_agregar_eje_perfil_cultural
     ),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -922,7 +922,7 @@ async def editar_eje_perfil_cultural(
     caso_uso: EditarEjePerfilCultural = Depends(
         obtener_caso_uso_editar_eje_perfil_cultural
     ),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -963,7 +963,7 @@ async def quitar_eje_perfil_cultural(
     caso_uso: QuitarEjePerfilCultural = Depends(
         obtener_caso_uso_quitar_eje_perfil_cultural
     ),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -991,7 +991,7 @@ async def quitar_nivel(
     modelo_id: str,
     numero_nivel: int,
     caso_uso: QuitarNivel = Depends(obtener_caso_uso_quitar_nivel),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -1023,7 +1023,7 @@ async def quitar_nivel(
 async def publicar_modelo(
     modelo_id: str,
     caso_uso: Publicar = Depends(obtener_caso_uso_publicar_modelo),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -1056,7 +1056,7 @@ async def publicar_modelo(
 async def crear_nueva_version(
     modelo_id: str,
     caso_uso: CrearNuevaVersion = Depends(obtener_caso_uso_crear_nueva_version),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:

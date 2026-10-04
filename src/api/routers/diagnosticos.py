@@ -359,7 +359,7 @@ def _resultado_a_response(resultado) -> Optional[ResultadoDiagnosticoResponse]:
 )
 async def iniciar_diagnostico(
     caso_uso: IniciarDiagnostico = Depends(obtener_caso_uso_iniciar_diagnostico),
-    usuario_id: str = Depends(requiere_rol("representante")),
+    usuario_id: str = Depends(requiere_rol("representante", "diagnosticos.responder")),
 ):
     try:
         diagnostico = await caso_uso.ejecutar(usuario_id)
@@ -388,7 +388,7 @@ async def obtener_diagnostico_en_curso(
     caso_uso: ObtenerDiagnosticoEnCurso = Depends(
         obtener_caso_uso_diagnostico_en_curso
     ),
-    usuario_id: str = Depends(requiere_rol("representante")),
+    usuario_id: str = Depends(requiere_rol("representante", "resultados.consultar")),
 ):
     try:
         diagnostico = await caso_uso.ejecutar(usuario_id)
@@ -410,7 +410,7 @@ async def listar_mis_diagnosticos(
     caso_uso: ListarDiagnosticosDeEmpresa = Depends(
         obtener_caso_uso_listar_diagnosticos_empresa
     ),
-    usuario_id: str = Depends(requiere_rol("representante")),
+    usuario_id: str = Depends(requiere_rol("representante", "resultados.consultar")),
 ):
     try:
         diagnosticos = await caso_uso.ejecutar(usuario_id)
@@ -432,7 +432,7 @@ async def obtener_evolucion(
     caso_uso: ConsultarEvolucionDiagnosticos = Depends(
         obtener_caso_uso_consultar_evolucion
     ),
-    usuario_id: str = Depends(requiere_rol("representante")),
+    usuario_id: str = Depends(requiere_rol("representante", "resultados.consultar")),
 ):
     try:
         evolucion = await caso_uso.ejecutar(usuario_id)
@@ -445,7 +445,7 @@ async def obtener_evolucion(
 async def consultar_diagnostico(
     diagnostico_id: str,
     caso_uso: ConsultarDiagnostico = Depends(obtener_caso_uso_consultar_diagnostico),
-    usuario_id: str = Depends(requiere_rol("representante")),
+    usuario_id: str = Depends(requiere_rol("representante", "resultados.consultar")),
 ):
     try:
         diagnostico = await caso_uso.ejecutar(usuario_id, diagnostico_id)
@@ -468,7 +468,7 @@ async def consultar_diagnostico(
 async def obtener_cuestionario(
     diagnostico_id: str,
     caso_uso: ObtenerCuestionario = Depends(obtener_caso_uso_obtener_cuestionario),
-    usuario_id: str = Depends(requiere_rol("representante")),
+    usuario_id: str = Depends(requiere_rol("representante", "resultados.consultar")),
 ):
     try:
         modelo = await caso_uso.ejecutar(usuario_id, diagnostico_id)
@@ -494,7 +494,7 @@ async def obtener_cuestionario(
 async def descargar_informe(
     diagnostico_id: str,
     caso_uso: GenerarInformeDiagnostico = Depends(obtener_caso_uso_generar_informe),
-    usuario_id: str = Depends(requiere_rol("representante")),
+    usuario_id: str = Depends(requiere_rol("representante", "resultados.consultar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -541,7 +541,7 @@ async def guardar_respuesta(
     diagnostico_id: str,
     datos: GuardarRespuestaRequest,
     caso_uso: GuardarRespuesta = Depends(obtener_caso_uso_guardar_respuesta),
-    usuario_id: str = Depends(requiere_rol("representante")),
+    usuario_id: str = Depends(requiere_rol("representante", "diagnosticos.responder")),
 ):
     try:
         diagnostico = await caso_uso.ejecutar(
@@ -579,7 +579,7 @@ async def completar_diagnostico(
     caso_uso_evaluar: EvaluarDiagnostico = Depends(
         obtener_caso_uso_evaluar_diagnostico
     ),
-    usuario_id: str = Depends(requiere_rol("representante")),
+    usuario_id: str = Depends(requiere_rol("representante", "diagnosticos.responder")),
 ):
     try:
         diagnostico = await caso_uso.ejecutar(usuario_id, diagnostico_id)
@@ -606,7 +606,7 @@ async def completar_diagnostico(
 async def cerrar_diagnostico(
     diagnostico_id: str,
     caso_uso: CerrarDiagnostico = Depends(obtener_caso_uso_cerrar_diagnostico),
-    usuario_id: str = Depends(requiere_rol("consultor")),
+    usuario_id: str = Depends(requiere_rol("consultor", "diagnosticos.cerrar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:

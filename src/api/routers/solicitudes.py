@@ -13,6 +13,7 @@ from src.aplicacion.casos_uso.radicar_solicitud import (RadicarSolicitud,
 from src.aplicacion.casos_uso.resolver_solicitud import (ResolverSolicitud,
                                                          SolicitudNoEncontrada)
 from src.dominio.entidades.empresa import Sector
+from src.dominio.entidades.solicitud_acceso import SolicitudYaResuelta
 
 router = APIRouter(prefix="/solicitudes-acceso", tags=["solicitudes"])
 
@@ -108,6 +109,8 @@ async def aprobar_solicitud(
         empresa, _codigo = await caso_uso.aprobar(solicitud_id, sector)
     except SolicitudNoEncontrada:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    except SolicitudYaResuelta as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
     await registrar_accion(
         repo_auditoria,
@@ -115,6 +118,7 @@ async def aprobar_solicitud(
         "solicitudes_acceso",
         solicitud_id,
         "actualizar",
+        valores_anteriores={"estado": "pendiente"},
         valores_nuevos={"estado": "aprobada", "empresa_id": empresa.id},
     )
 
@@ -141,6 +145,8 @@ async def rechazar_solicitud(
         await caso_uso.rechazar(solicitud_id, datos.motivo)
     except SolicitudNoEncontrada:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    except SolicitudYaResuelta as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -150,5 +156,6 @@ async def rechazar_solicitud(
         "solicitudes_acceso",
         solicitud_id,
         "actualizar",
+        valores_anteriores={"estado": "pendiente"},
         valores_nuevos={"estado": "rechazada", "motivo": datos.motivo},
     )

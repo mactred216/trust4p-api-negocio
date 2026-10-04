@@ -7,7 +7,9 @@ from src.api.dependencias import (obtener_caso_uso_actualizar_perfil,
                                   obtener_caso_uso_cambiar_contrasena,
                                   obtener_caso_uso_cerrar_sesion,
                                   obtener_caso_uso_consultar_usuario,
-                                  obtener_caso_uso_eliminar_datos_personales)
+                                  obtener_caso_uso_eliminar_datos_personales,
+                                  obtener_repositorio_auditoria)
+from src.api.middleware.auditoria import registrar_accion, registrar_cambio
 from src.api.middleware.autorizacion import obtener_usuario_autenticado
 from src.api.validadores_comunes import (clave_cumple_politica,
                                          telefono_valido,
@@ -91,6 +93,15 @@ class EliminarDatosRequest(BaseModel):
         return v
 
 
+def _resumen_auditoria(usuario) -> dict:
+    return {
+        "nombres": usuario.nombres,
+        "apellidos": usuario.apellidos,
+        "cargo": usuario.cargo,
+        "telefono": usuario.telefono,
+    }
+
+
 def _a_response(usuario) -> PerfilResponse:
     return PerfilResponse(
         id=usuario.id,
@@ -120,9 +131,12 @@ async def consultar_mi_perfil(
 async def actualizar_mi_perfil(
     datos: ActualizarPerfilRequest,
     caso_uso: ActualizarPerfil = Depends(obtener_caso_uso_actualizar_perfil),
+    consulta: ConsultarUsuario = Depends(obtener_caso_uso_consultar_usuario),
     usuario_id: str = Depends(obtener_usuario_autenticado),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
+        antes = _resumen_auditoria(await consulta.ejecutar(usuario_id))
         usuario = await caso_uso.ejecutar(
             usuario_id,
             nombres=datos.nombres,
@@ -130,8 +144,17 @@ async def actualizar_mi_perfil(
             cargo=datos.cargo,
             telefono=datos.telefono,
         )
-    except UsuarioNoEncontrado:
+    except (UsuarioNoEncontrado, UsuarioNoEncontradoConsulta):
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    await registrar_cambio(
+        repo_auditoria,
+        usuario_id,
+        "usuarios",
+        usuario_id,
+        antes,
+        _resumen_auditoria(usuario),
+    )
     return _a_response(usuario)
 
 
@@ -146,6 +169,7 @@ async def cambiar_mi_contrasena(
     datos: CambiarContrasenaRequest,
     caso_uso: CambiarContrasena = Depends(obtener_caso_uso_cambiar_contrasena),
     usuario_id: str = Depends(obtener_usuario_autenticado),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         await caso_uso.ejecutar(usuario_id, datos.clave_actual, datos.clave_nueva)
@@ -161,6 +185,15 @@ async def cambiar_mi_contrasena(
             detail="No puede reutilizar una de sus últimas 5 contraseñas",
         )
 
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "usuarios",
+        usuario_id,
+        "actualizar",
+        valores_nuevos={"clave": "cambiada"},
+    )
+
 
 @router.post(
     "/cerrar-sesion",
@@ -172,11 +205,20 @@ async def cerrar_mi_sesion(
     response: Response,
     caso_uso: CerrarSesion = Depends(obtener_caso_uso_cerrar_sesion),
     usuario_id: str = Depends(obtener_usuario_autenticado),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     token = request.cookies.get("sesion")
     if token is not None:
         await caso_uso.ejecutar(token)
     response.delete_cookie("sesion")
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "usuarios",
+        usuario_id,
+        "autenticar",
+        valores_nuevos={"resultado": "cierre_sesion"},
+    )
 
 
 @router.post(
@@ -193,6 +235,7 @@ async def eliminar_mis_datos(
         obtener_caso_uso_eliminar_datos_personales
     ),
     usuario_id: str = Depends(obtener_usuario_autenticado),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         await caso_uso.ejecutar(usuario_id)
@@ -200,3 +243,12 @@ async def eliminar_mis_datos(
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "usuarios",
+        usuario_id,
+        "eliminar",
+        valores_nuevos={"datos_personales": "anonimizados"},
+    )

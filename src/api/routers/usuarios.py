@@ -30,7 +30,7 @@ from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 from src.api.dependencias import obtener_repositorio_auditoria
-from src.api.middleware.auditoria import registrar_accion
+from src.api.middleware.auditoria import registrar_accion, registrar_cambio
 
 ROLES_VALIDOS = {"administrador", "consultor", "representante"}
 
@@ -108,6 +108,17 @@ class AsignacionRequest(BaseModel):
     @classmethod
     def empresa_id_no_vacio(cls, v: str) -> str:
         return texto_no_vacio(v)
+
+
+def _resumen_auditoria(usuario) -> dict:
+    """Campos del usuario que se comparan en la bitacora (nunca claves ni hashes)."""
+    return {
+        "nombres": usuario.nombres,
+        "apellidos": usuario.apellidos,
+        "rol_codigo": usuario.rol.codigo,
+        "empresa_id": usuario.empresa_id,
+        "activo": usuario.activo,
+    }
 
 
 def _a_response(usuario) -> UsuarioResponse:
@@ -202,17 +213,29 @@ async def editar_usuario(
     usuario_id: str,
     datos: EditarUsuarioRequest,
     caso_uso: EditarUsuario = Depends(obtener_caso_uso_editar_usuario),
+    consulta: ConsultarUsuario = Depends(obtener_caso_uso_consultar_usuario),
     usuario_actual_id: str = Depends(
         requiere_rol("administrador", "usuarios.gestionar")
     ),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     campos = datos.model_dump(exclude_unset=True)
     try:
+        antes = _resumen_auditoria(await consulta.ejecutar(usuario_id))
         usuario = await caso_uso.ejecutar(usuario_id, **campos)
     except UsuarioNoEncontrado:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_cambio(
+        repo_auditoria,
+        usuario_actual_id,
+        "usuarios",
+        usuario_id,
+        antes,
+        _resumen_auditoria(usuario),
+    )
     return _a_response(usuario)
 
 
@@ -242,6 +265,7 @@ async def desactivar_usuario(
         "usuarios",
         usuario_id,
         "actualizar",
+        valores_anteriores={"activo": True},
         valores_nuevos={"activo": False},
     )
 
@@ -268,6 +292,7 @@ async def reactivar_usuario(
         "usuarios",
         usuario_id,
         "actualizar",
+        valores_anteriores={"activo": False},
         valores_nuevos={"activo": True},
     )
 
@@ -300,7 +325,8 @@ async def desbloquear_usuario(
         "usuarios",
         usuario_id,
         "actualizar",
-        valores_nuevos={"bloqueado_hasta": None},
+        valores_anteriores={"bloqueado": True},
+        valores_nuevos={"bloqueado": False},
     )
 
 
@@ -317,6 +343,7 @@ async def asignar_empresa_a_consultor(
     usuario_actual_id: str = Depends(
         requiere_rol("administrador", "usuarios.gestionar")
     ),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         await caso_uso.asignar(consultor_id, datos.empresa_id)
@@ -331,6 +358,15 @@ async def asignar_empresa_a_consultor(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "usuarios",
+        consultor_id,
+        "actualizar",
+        valores_nuevos={"asignacion_agregada": datos.empresa_id},
+    )
+
 
 @router.delete(
     "/{consultor_id}/asignaciones/{empresa_id}",
@@ -344,6 +380,7 @@ async def finalizar_asignacion(
     usuario_actual_id: str = Depends(
         requiere_rol("administrador", "usuarios.gestionar")
     ),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         await caso_uso.finalizar(consultor_id, empresa_id)
@@ -351,3 +388,13 @@ async def finalizar_asignacion(
         raise HTTPException(status_code=404, detail="Consultor no encontrado")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "usuarios",
+        consultor_id,
+        "actualizar",
+        valores_anteriores={"asignacion_vigente": empresa_id},
+        valores_nuevos={"asignacion_finalizada": empresa_id},
+    )

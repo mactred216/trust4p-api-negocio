@@ -89,4 +89,14 @@ async def test_rechazar_solicitud_con_motivo():
 
     repo_empresa.guardar.assert_not_called()
     repo_solicitud.actualizar.assert_called_once()
-    servicio_correo.enviar.assert_not_called()
+    # HU-002 CA-02: se notifica al solicitante con el motivo
+    servicio_correo.enviar.assert_called_once()
+    assert (
+        servicio_correo.enviar.call_args.kwargs["destinatario"]
+        == solicitud.correo_solicitante
+    )
+    assert (
+        "No cumple criterio de tamaño"
+        in servicio_correo.enviar.call_args.kwargs["cuerpo"]
+    )
+    assert repo_notificacion.registrar.call_args[0][0].tipo == "solicitud_rechazada"

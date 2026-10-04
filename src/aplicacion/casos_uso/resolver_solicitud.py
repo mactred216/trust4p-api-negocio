@@ -1,5 +1,7 @@
 from src.aplicacion.servicios.notificar import enviar_notificacion
 from src.dominio.entidades.empresa import Empresa, Sector
+from src.dominio.entidades.solicitud_acceso import (EstadoSolicitud,
+                                                    SolicitudYaResuelta)
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
 from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
@@ -33,6 +35,10 @@ class ResolverSolicitud:
         solicitud = await self._solicitudes.obtener_por_id(solicitud_id)
         if solicitud is None:
             raise SolicitudNoEncontrada()
+
+        if solicitud.estado != EstadoSolicitud.PENDIENTE:
+            # antes de crear nada: una solicitud resuelta no deja una empresa huerfana
+            raise SolicitudYaResuelta("La solicitud ya fue resuelta")
 
         empresa = Empresa(id=None, nombre=solicitud.nombre_empresa, sector=sector)
         empresa = await self._empresas.guardar(empresa)
@@ -74,3 +80,17 @@ class ResolverSolicitud:
             raise SolicitudNoEncontrada()
         solicitud.rechazar(motivo=motivo)
         await self._solicitudes.actualizar(solicitud)
+
+        await enviar_notificacion(
+            self._correo,
+            self._notificaciones,
+            usuario_id=None,
+            correo_destino=solicitud.correo_solicitante,
+            tipo="solicitud_rechazada",
+            asunto="Trust 4P - Respuesta a tu solicitud de acceso",
+            contenido=(
+                f"Hola {solicitud.nombre_solicitante},\n\n"
+                f"Tu solicitud de acceso para {solicitud.nombre_empresa} no fue aprobada.\n"
+                f"Motivo: {motivo}"
+            ),
+        )

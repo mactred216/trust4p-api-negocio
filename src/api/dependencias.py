@@ -47,12 +47,6 @@ def obtener_repositorio_solicitud(
     return RepositorioMongoSolicitud(db)
 
 
-def obtener_caso_uso_radicar_solicitud(
-    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
-) -> RadicarSolicitud:
-    return RadicarSolicitud(repo)
-
-
 def obtener_servicio_correo() -> ClienteCorreoSMTP:
     return ClienteCorreoSMTP()
 
@@ -160,14 +154,6 @@ def obtener_caso_uso_solicitar_restablecimiento(
     servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
 ) -> SolicitarRestablecimiento:
     return SolicitarRestablecimiento(repo_usuario, repo_token, servicio_correo)
-
-
-def obtener_caso_uso_restablecer_contrasena(
-    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
-    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
-    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
-) -> RestablecerContrasena:
-    return RestablecerContrasena(repo_usuario, repo_token, repo_sesion)
 
 
 def obtener_caso_uso_listar_usuarios(
@@ -697,9 +683,15 @@ def obtener_caso_uso_iniciar_sesion(
     repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
     repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
     repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ) -> IniciarSesion:
     return IniciarSesion(
-        repo_usuario, repo_sesion, repo_rol, repo_empresa, BLOQUEO_CORREOS_DESCONOCIDOS
+        repo_usuario,
+        repo_sesion,
+        repo_rol,
+        repo_empresa,
+        BLOQUEO_CORREOS_DESCONOCIDOS,
+        repo_auditoria,
     )
 
 
@@ -727,3 +719,23 @@ def obtener_caso_uso_crear_usuario(
     return CrearUsuario(
         repo_usuario, repo_empresa, repo_token, servicio_correo, repo_notificacion
     )
+
+
+def obtener_caso_uso_radicar_solicitud(
+    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
+) -> RadicarSolicitud:
+    return RadicarSolicitud(repo, repo_usuario, servicio_correo, repo_notificacion)
+
+
+def obtener_caso_uso_restablecer_contrasena(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+) -> RestablecerContrasena:
+    return RestablecerContrasena(repo_usuario, repo_token, repo_sesion, repo_auditoria)

@@ -10,7 +10,7 @@ from src.api.dependencias import (obtener_caso_uso_consultar_empresa,
                                   obtener_caso_uso_listar_empresas,
                                   obtener_caso_uso_reactivar_empresa,
                                   obtener_repositorio_auditoria)
-from src.api.middleware.auditoria import registrar_accion
+from src.api.middleware.auditoria import registrar_accion, registrar_cambio
 from src.api.middleware.autorizacion import requiere_rol
 from src.api.validadores_comunes import (nit_valido, texto_no_vacio,
                                          texto_opcional_no_vacio)
@@ -98,6 +98,16 @@ class EditarEmpresaRequest(BaseModel):
         if v > 1_000_000:
             raise ValueError("Valor de empleados no razonable")
         return v
+
+
+def _resumen_auditoria(empresa) -> dict:
+    return {
+        "nombre": empresa.nombre,
+        "nit": empresa.nit,
+        "numero_empleados": empresa.numero_empleados,
+        "ciudad": empresa.ciudad,
+        "activo": empresa.activo,
+    }
 
 
 def _a_response(empresa) -> EmpresaResponse:
@@ -201,9 +211,12 @@ async def editar_empresa(
     empresa_id: str,
     datos: EditarEmpresaRequest,
     caso_uso: EditarEmpresa = Depends(obtener_caso_uso_editar_empresa),
+    consulta: ConsultarEmpresa = Depends(obtener_caso_uso_consultar_empresa),
     usuario_id: str = Depends(requiere_rol("administrador", "empresas.gestionar")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
+        antes = _resumen_auditoria(await consulta.ejecutar(empresa_id))
         empresa = await caso_uso.ejecutar(
             empresa_id,
             nombre=datos.nombre,
@@ -215,6 +228,15 @@ async def editar_empresa(
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     except NitYaRegistrado:
         raise HTTPException(status_code=409, detail="Ya existe una empresa con ese NIT")
+
+    await registrar_cambio(
+        repo_auditoria,
+        usuario_id,
+        "empresas",
+        empresa_id,
+        antes,
+        _resumen_auditoria(empresa),
+    )
     return _a_response(empresa)
 
 
@@ -238,6 +260,7 @@ async def desactivar_empresa(
         "empresas",
         empresa_id,
         "actualizar",
+        valores_anteriores={"activo": True},
         valores_nuevos={"activo": False},
     )
 
@@ -247,8 +270,19 @@ async def reactivar_empresa(
     empresa_id: str,
     caso_uso: ReactivarEmpresa = Depends(obtener_caso_uso_reactivar_empresa),
     usuario_id: str = Depends(requiere_rol("administrador", "empresas.gestionar")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
         await caso_uso.ejecutar(empresa_id)
     except EmpresaNoEncontrada:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "empresas",
+        empresa_id,
+        "actualizar",
+        valores_anteriores={"activo": False},
+        valores_nuevos={"activo": True},
+    )

@@ -4,6 +4,10 @@ from enum import Enum
 from typing import Optional
 
 
+class SolicitudYaResuelta(ValueError):
+    """RF-02: una solicitud solo se resuelve una vez."""
+
+
 class EstadoSolicitud(str, Enum):
     PENDIENTE = "pendiente"
     APROBADA = "aprobada"
@@ -25,7 +29,7 @@ class SolicitudAcceso:
     def aprobar(self, empresa_id: str) -> None:
         """RF-02: solo se puede resolver una vez (evita doble aprobación)."""
         if self.estado != EstadoSolicitud.PENDIENTE:
-            raise ValueError("Solo se pueden aprobar solicitudes pendientes")
+            raise SolicitudYaResuelta("La solicitud ya fue resuelta")
         self.estado = EstadoSolicitud.APROBADA
         self.empresa_id = empresa_id
         self.resuelto_en = datetime.now(timezone.utc)
@@ -33,7 +37,7 @@ class SolicitudAcceso:
     def rechazar(self, motivo: str) -> None:
         """RF-02: el rechazo exige motivo explícito, no queda ambiguo."""
         if self.estado != EstadoSolicitud.PENDIENTE:
-            raise ValueError("Solo se pueden rechazar solicitudes pendientes")
+            raise SolicitudYaResuelta("La solicitud ya fue resuelta")
         if not motivo or not motivo.strip():
             raise ValueError("El motivo de rechazo es obligatorio")
         self.estado = EstadoSolicitud.RECHAZADA

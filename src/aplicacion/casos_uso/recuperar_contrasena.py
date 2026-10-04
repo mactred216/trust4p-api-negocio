@@ -1,7 +1,11 @@
+from typing import Optional
+
 import bcrypt
 
+from src.dominio.entidades.registro_auditoria import RegistroAuditoria
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
+from src.dominio.puertos.repositorio_auditoria import RepositorioAuditoria
 from src.dominio.puertos.repositorio_sesion import RepositorioSesion
 from src.dominio.puertos.repositorio_token import RepositorioToken
 from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
@@ -62,10 +66,12 @@ class RestablecerContrasena:
         repo_usuario: RepositorioUsuario,
         repo_token: RepositorioToken,
         repo_sesion: RepositorioSesion,
+        repo_auditoria: Optional[RepositorioAuditoria] = None,
     ):
         self._usuarios = repo_usuario
         self._tokens = repo_token
         self._sesiones = repo_sesion
+        self._auditoria = repo_auditoria
 
     async def ejecutar(self, codigo_token: str, clave_nueva: str) -> None:
         token = await self._tokens.obtener_por_codigo(codigo_token)
@@ -95,3 +101,16 @@ class RestablecerContrasena:
         await self._tokens.actualizar(token)
 
         await self._sesiones.revocar_todas_de_usuario(usuario.id)
+
+        if self._auditoria is not None:
+            # RNF-22: evento de seguridad (sin la clave ni el codigo)
+            await self._auditoria.registrar(
+                RegistroAuditoria(
+                    id=None,
+                    usuario_id=usuario.id,
+                    entidad="usuarios",
+                    entidad_id=usuario.id,
+                    accion="actualizar",
+                    valores_nuevos={"clave": "restablecida"},
+                )
+            )

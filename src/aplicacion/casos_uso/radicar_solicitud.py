@@ -1,5 +1,12 @@
+from typing import Optional
+
+from src.aplicacion.servicios.notificar import enviar_notificacion
 from src.dominio.entidades.solicitud_acceso import SolicitudAcceso
+from src.dominio.puertos.repositorio_notificacion import \
+    RepositorioNotificacion
 from src.dominio.puertos.repositorio_solicitud import RepositorioSolicitud
+from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
+from src.dominio.puertos.servicio_correo import ServicioCorreo
 
 
 class SolicitudDuplicada(Exception):
@@ -9,8 +16,17 @@ class SolicitudDuplicada(Exception):
 
 
 class RadicarSolicitud:
-    def __init__(self, repositorio: RepositorioSolicitud):
+    def __init__(
+        self,
+        repositorio: RepositorioSolicitud,
+        repo_usuario: Optional[RepositorioUsuario] = None,
+        servicio_correo: Optional[ServicioCorreo] = None,
+        repo_notificacion: Optional[RepositorioNotificacion] = None,
+    ):
         self._solicitudes = repositorio
+        self._usuarios = repo_usuario
+        self._correo = servicio_correo
+        self._notificaciones = repo_notificacion
 
     async def ejecutar(
         self,
@@ -31,4 +47,33 @@ class RadicarSolicitud:
             nombre_solicitante=nombre_solicitante,
         )
 
-        return await self._solicitudes.guardar(solicitud)
+        solicitud = await self._solicitudes.guardar(solicitud)
+        await self._notificar_administradores(solicitud)
+        return solicitud
+
+    async def _notificar_administradores(self, solicitud: SolicitudAcceso) -> None:
+        """RF-01 paso 5 / RF-46: avisa a los administradores activos de la nueva
+        solicitud. Un fallo de correo no impide radicarla (enviar_notificacion
+        no propaga el error y lo deja en la bitacora de notificaciones)."""
+        if (
+            self._usuarios is None
+            or self._correo is None
+            or self._notificaciones is None
+        ):
+            return
+        for administrador in await self._usuarios.listar_por_rol("administrador"):
+            if not administrador.activo or administrador.registro_pendiente:
+                continue
+            await enviar_notificacion(
+                self._correo,
+                self._notificaciones,
+                usuario_id=administrador.id,
+                correo_destino=administrador.correo,
+                tipo="solicitud_nueva",
+                asunto="Trust 4P - Nueva solicitud de acceso",
+                contenido=(
+                    f"Hola {administrador.nombres},\n\n"
+                    f"{solicitud.nombre_solicitante} radico una solicitud de acceso para "
+                    f"{solicitud.nombre_empresa}. Ingrese a la plataforma para revisarla."
+                ),
+            )

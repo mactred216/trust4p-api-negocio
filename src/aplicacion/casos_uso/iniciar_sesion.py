@@ -3,6 +3,8 @@ from typing import Optional
 
 import bcrypt
 
+from src.dominio.entidades.registro_auditoria import RegistroAuditoria
+from src.dominio.puertos.repositorio_auditoria import RepositorioAuditoria
 from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
 from src.dominio.puertos.repositorio_rol import RepositorioRol
 from src.dominio.puertos.repositorio_sesion import RepositorioSesion
@@ -69,14 +71,35 @@ class IniciarSesion:
         repo_rol: Optional[RepositorioRol] = None,
         repo_empresa: Optional[RepositorioEmpresa] = None,
         bloqueo_desconocidos: Optional[BloqueoCorreosDesconocidos] = None,
+        repo_auditoria: Optional[RepositorioAuditoria] = None,
     ):
         self._usuarios = repo_usuario
         self._sesiones = repo_sesion
         self._roles = repo_rol
         self._empresas = repo_empresa
         self._desconocidos = bloqueo_desconocidos or BloqueoCorreosDesconocidos()
+        self._auditoria = repo_auditoria
 
-    async def ejecutar(self, correo: str, clave: str) -> str:
+    async def _registrar(
+        self, usuario_id: str, resultado: str, ip: Optional[str], **extra
+    ) -> None:
+        """RNF-22 / HU-004 CA-01: eventos de seguridad en la bitacora (sin
+        credenciales ni datos de quien no tiene cuenta)."""
+        if self._auditoria is None:
+            return
+        await self._auditoria.registrar(
+            RegistroAuditoria(
+                id=None,
+                usuario_id=usuario_id,
+                entidad="usuarios",
+                entidad_id=usuario_id,
+                accion="autenticar",
+                valores_nuevos={"resultado": resultado, **extra},
+                direccion_ip=ip,
+            )
+        )
+
+    async def ejecutar(self, correo: str, clave: str, ip: Optional[str] = None) -> str:
         usuario = await self._usuarios.obtener_por_correo(correo)
         if usuario is None:
             if self._desconocidos.esta_bloqueado(correo):
@@ -86,16 +109,24 @@ class IniciarSesion:
             raise CredencialesInvalidas()
 
         if not usuario.puede_intentar_acceso():
+            await self._registrar(usuario.id, "intento_con_cuenta_bloqueada", ip)
             raise CuentaBloqueada()
 
         if not bcrypt.checkpw(clave.encode(), usuario.clave_hash.encode()):
             usuario.registrar_intento_fallido()
             await self._usuarios.actualizar(usuario)
+            await self._registrar(
+                usuario.id,
+                "cuenta_bloqueada" if usuario.bloqueado_hasta else "fallido",
+                ip,
+                intentos=usuario.intentos_fallidos,
+            )
             raise CredencialesInvalidas()
 
         if usuario.empresa_id and self._empresas is not None:
             empresa = await self._empresas.obtener_por_id(usuario.empresa_id)
             if empresa is not None and not empresa.activo:
+                await self._registrar(usuario.id, "empresa_inactiva", ip)
                 raise CuentaInactiva()
 
         usuario.reiniciar_intentos()
@@ -109,4 +140,5 @@ class IniciarSesion:
                 usuario.rol.permisos = list(rol.permisos)
 
         token = await self._sesiones.crear(usuario)
+        await self._registrar(usuario.id, "exitoso", ip)
         return token

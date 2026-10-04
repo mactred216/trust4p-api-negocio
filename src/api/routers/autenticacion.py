@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, field_validator
 
 from src.api.dependencias import (obtener_caso_uso_completar_registro,
@@ -102,11 +102,16 @@ class MensajeResponse(BaseModel):
 )
 async def login(
     datos: LoginRequest,
+    request: Request,
     response: Response,
     caso_uso: IniciarSesion = Depends(obtener_caso_uso_iniciar_sesion),
 ):
     try:
-        token = await caso_uso.ejecutar(datos.correo, datos.clave)
+        token = await caso_uso.ejecutar(
+            datos.correo,
+            datos.clave,
+            ip=request.client.host if request.client else None,
+        )
     except CredencialesInvalidas:
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
     except CuentaBloqueada:

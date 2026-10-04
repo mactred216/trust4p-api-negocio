@@ -23,8 +23,10 @@ from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_caso_uso_quitar_eje_perfil_cultural,
                                   obtener_caso_uso_quitar_nivel,
                                   obtener_caso_uso_reactivar_pregunta,
-                                  obtener_repositorio_auditoria)
-from src.api.middleware.auditoria import registrar_accion
+                                  obtener_repositorio_auditoria,
+                                  obtener_repositorio_modelo_madurez)
+from src.api.middleware.auditoria import (registrar_accion,
+                                          registrar_cambio_elemento_modelo)
 from src.api.middleware.autorizacion import requiere_rol
 from src.api.validadores_comunes import (descripcion_opcional, entero_positivo,
                                          entero_positivo_opcional,
@@ -588,7 +590,9 @@ async def editar_dimension(
     caso_uso: EditarDimension = Depends(obtener_caso_uso_editar_dimension),
     usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
     try:
         modelo = await caso_uso.ejecutar(
             modelo_id,
@@ -603,13 +607,17 @@ async def editar_dimension(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await registrar_accion(
+    await registrar_cambio_elemento_modelo(
         repo_auditoria,
         usuario_actual_id,
-        "modelos_madurez",
         modelo_id,
-        "actualizar",
-        valores_nuevos={"dimension_editada": codigo},
+        "dimension",
+        antes_modelo,
+        modelo,
+        "dimensiones",
+        "codigo",
+        codigo,
+        "editada",
     )
     return _a_response(modelo)
 
@@ -623,7 +631,9 @@ async def quitar_dimension(
     caso_uso: QuitarDimension = Depends(obtener_caso_uso_quitar_dimension),
     usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
     try:
         modelo = await caso_uso.ejecutar(modelo_id, codigo)
     except ModeloNoEncontrado:
@@ -631,13 +641,17 @@ async def quitar_dimension(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await registrar_accion(
+    await registrar_cambio_elemento_modelo(
         repo_auditoria,
         usuario_actual_id,
-        "modelos_madurez",
         modelo_id,
-        "actualizar",
-        valores_nuevos={"dimension_quitada": codigo},
+        "dimension",
+        antes_modelo,
+        modelo,
+        "dimensiones",
+        "codigo",
+        codigo,
+        "quitada",
     )
     return _a_response(modelo)
 
@@ -695,7 +709,9 @@ async def editar_pregunta(
     caso_uso: EditarPregunta = Depends(obtener_caso_uso_editar_pregunta),
     usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
     try:
         modelo = await caso_uso.ejecutar(
             modelo_id,
@@ -719,13 +735,17 @@ async def editar_pregunta(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await registrar_accion(
+    await registrar_cambio_elemento_modelo(
         repo_auditoria,
         usuario_actual_id,
-        "modelos_madurez",
         modelo_id,
-        "actualizar",
-        valores_nuevos={"pregunta_editada": codigo},
+        "pregunta",
+        antes_modelo,
+        modelo,
+        "preguntas",
+        "codigo",
+        codigo,
+        "editada",
     )
     return _a_response(modelo)
 
@@ -742,7 +762,9 @@ async def desactivar_pregunta(
     caso_uso: DesactivarPregunta = Depends(obtener_caso_uso_desactivar_pregunta),
     usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
     try:
         modelo = await caso_uso.ejecutar(modelo_id, codigo)
     except ModeloNoEncontrado:
@@ -750,13 +772,17 @@ async def desactivar_pregunta(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await registrar_accion(
+    await registrar_cambio_elemento_modelo(
         repo_auditoria,
         usuario_actual_id,
-        "modelos_madurez",
         modelo_id,
-        "actualizar",
-        valores_nuevos={"pregunta_desactivada": codigo},
+        "pregunta",
+        antes_modelo,
+        modelo,
+        "preguntas",
+        "codigo",
+        codigo,
+        "desactivada",
     )
     return _a_response(modelo)
 
@@ -770,7 +796,9 @@ async def reactivar_pregunta(
     caso_uso: ReactivarPregunta = Depends(obtener_caso_uso_reactivar_pregunta),
     usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
     try:
         modelo = await caso_uso.ejecutar(modelo_id, codigo)
     except ModeloNoEncontrado:
@@ -778,13 +806,17 @@ async def reactivar_pregunta(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await registrar_accion(
+    await registrar_cambio_elemento_modelo(
         repo_auditoria,
         usuario_actual_id,
-        "modelos_madurez",
         modelo_id,
-        "actualizar",
-        valores_nuevos={"pregunta_reactivada": codigo},
+        "pregunta",
+        antes_modelo,
+        modelo,
+        "preguntas",
+        "codigo",
+        codigo,
+        "reactivada",
     )
     return _a_response(modelo)
 
@@ -838,7 +870,9 @@ async def editar_nivel(
     caso_uso: EditarNivel = Depends(obtener_caso_uso_editar_nivel),
     usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
     try:
         modelo = await caso_uso.ejecutar(
             modelo_id,
@@ -853,13 +887,17 @@ async def editar_nivel(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await registrar_accion(
+    await registrar_cambio_elemento_modelo(
         repo_auditoria,
         usuario_actual_id,
-        "modelos_madurez",
         modelo_id,
-        "actualizar",
-        valores_nuevos={"nivel_editado": numero_nivel},
+        "nivel",
+        antes_modelo,
+        modelo,
+        "niveles",
+        "nivel",
+        numero_nivel,
+        "editado",
     )
     return _a_response(modelo)
 
@@ -924,7 +962,9 @@ async def editar_eje_perfil_cultural(
     ),
     usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
     try:
         modelo = await caso_uso.ejecutar(
             modelo_id,
@@ -942,13 +982,17 @@ async def editar_eje_perfil_cultural(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await registrar_accion(
+    await registrar_cambio_elemento_modelo(
         repo_auditoria,
         usuario_actual_id,
-        "modelos_madurez",
         modelo_id,
-        "actualizar",
-        valores_nuevos={"eje_perfil_cultural_editado": codigo},
+        "eje_perfil_cultural",
+        antes_modelo,
+        modelo,
+        "ejes_perfil_cultural",
+        "codigo",
+        codigo,
+        "editado",
     )
     return _a_response(modelo)
 
@@ -965,7 +1009,9 @@ async def quitar_eje_perfil_cultural(
     ),
     usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
     try:
         modelo = await caso_uso.ejecutar(modelo_id, codigo)
     except ModeloNoEncontrado:
@@ -973,13 +1019,17 @@ async def quitar_eje_perfil_cultural(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await registrar_accion(
+    await registrar_cambio_elemento_modelo(
         repo_auditoria,
         usuario_actual_id,
-        "modelos_madurez",
         modelo_id,
-        "actualizar",
-        valores_nuevos={"eje_perfil_cultural_quitado": codigo},
+        "eje_perfil_cultural",
+        antes_modelo,
+        modelo,
+        "ejes_perfil_cultural",
+        "codigo",
+        codigo,
+        "quitado",
     )
     return _a_response(modelo)
 
@@ -993,7 +1043,9 @@ async def quitar_nivel(
     caso_uso: QuitarNivel = Depends(obtener_caso_uso_quitar_nivel),
     usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
     try:
         modelo = await caso_uso.ejecutar(modelo_id, numero_nivel)
     except ModeloNoEncontrado:
@@ -1001,13 +1053,17 @@ async def quitar_nivel(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    await registrar_accion(
+    await registrar_cambio_elemento_modelo(
         repo_auditoria,
         usuario_actual_id,
-        "modelos_madurez",
         modelo_id,
-        "actualizar",
-        valores_nuevos={"nivel_quitado": numero_nivel},
+        "nivel",
+        antes_modelo,
+        modelo,
+        "niveles",
+        "nivel",
+        numero_nivel,
+        "quitado",
     )
     return _a_response(modelo)
 

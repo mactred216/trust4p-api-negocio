@@ -69,6 +69,18 @@ PERMISOS_POR_ROL: dict[str, list[str]] = {
     ],
 }
 
+SECTORES_INICIALES: list[tuple[str, str]] = [
+    # (codigo, nombre) — catalogo inicial; el administrador puede ampliarlo
+    ("logistica", "Cadena de suministro / Logística"),
+    ("biotecnologia", "Biotecnología y Salud"),
+    ("fintech", "Fintech y Servicios financieros"),
+    ("alimentos", "Alimentos y Agroindustria"),
+    ("tecnologia", "Tecnología y Software"),
+    ("manufactura", "Manufactura e Industria"),
+    ("servicios", "Servicios profesionales"),
+    ("otro", "Otro sector"),
+]
+
 NOMBRES_ROLES = {
     "representante": "Representante de empresa",
     "consultor": "Consultor",

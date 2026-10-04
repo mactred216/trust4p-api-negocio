@@ -39,6 +39,8 @@ class Usuario:
     telefono: Optional[str] = None
     acepto_tratamiento_en: Optional[datetime] = None
     version_politica_aceptada: Optional[str] = None
+    # RF-25: usuario creado por el administrador que aún no define su clave
+    registro_pendiente: bool = False
 
     HISTORIAL_CLAVES_MAXIMO = 5
 

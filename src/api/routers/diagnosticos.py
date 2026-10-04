@@ -30,7 +30,8 @@ from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, CerrarDiagnostico, CompletarDiagnostico,
     ConsultarDiagnostico, DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado,
     GuardarRespuesta, IniciarDiagnostico, ListarDiagnosticosDeEmpresa,
-    NoHayVersionVigente, ObtenerCuestionario, ObtenerDiagnosticoEnCurso)
+    NoHayVersionVigente, ObtenerCuestionario, ObtenerDiagnosticoEnCurso,
+    PreguntasPendientes)
 from src.infraestructura.informes.generador_informe_pdf import \
     generar_informe_pdf
 
@@ -84,6 +85,7 @@ class RecomendacionResponse(BaseModel):
     prioridad: Optional[int]
     visible: bool
     autor_id: Optional[str]
+    autor_nombre: Optional[str] = None
     creado_en: datetime
 
 
@@ -157,8 +159,19 @@ class DimensionCuestionarioResponse(BaseModel):
     descripcion: Optional[str]
 
 
+class NivelCuestionarioResponse(BaseModel):
+    numero: int
+    nombre: str
+    descripcion: str
+    umbral_min: Decimal
+    umbral_max: Decimal
+
+
 class CuestionarioResponse(BaseModel):
     modelo_version: str
+    escala_min: int
+    escala_max: int
+    niveles: list[NivelCuestionarioResponse]
     dimensiones: list[DimensionCuestionarioResponse]
     preguntas: list[PreguntaCuestionarioResponse]
 
@@ -238,6 +251,18 @@ def _evolucion_a_response(evolucion) -> EvolucionResponse:
 def _cuestionario_a_response(modelo) -> CuestionarioResponse:
     return CuestionarioResponse(
         modelo_version=modelo.version,
+        escala_min=modelo.escala_min,
+        escala_max=modelo.escala_max,
+        niveles=[
+            NivelCuestionarioResponse(
+                numero=n.nivel,
+                nombre=n.nombre,
+                descripcion=n.descripcion,
+                umbral_min=n.umbral_min,
+                umbral_max=n.umbral_max,
+            )
+            for n in sorted(modelo.niveles, key=lambda n: n.nivel)
+        ],
         dimensiones=[
             DimensionCuestionarioResponse(
                 codigo=d.codigo,
@@ -312,6 +337,7 @@ def _a_response(diagnostico, incluir_ocultas: bool = False) -> DiagnosticoRespon
                 prioridad=r.prioridad,
                 visible=r.visible,
                 autor_id=r.autor_id,
+                autor_nombre=r.autor_nombre,
                 creado_en=r.creado_en,
             )
             for r in diagnostico.recomendaciones
@@ -588,6 +614,11 @@ async def completar_diagnostico(
     except AccesoNoAutorizado:
         raise HTTPException(
             status_code=403, detail="Este diagnóstico no pertenece a su empresa"
+        )
+    except PreguntasPendientes as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"mensaje": str(e), "preguntas_pendientes": e.codigos},
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

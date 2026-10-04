@@ -67,6 +67,8 @@ class Recomendacion:
     prioridad: Optional[int] = None
     visible: bool = True
     creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    # Nombre del consultor al registrar, para que la empresa vea quién la escribió.
+    autor_nombre: Optional[str] = None
 
 
 @dataclass
@@ -208,6 +210,7 @@ class Diagnostico:
         contenido: str,
         dimension_codigo: Optional[str] = None,
         visible: bool = True,
+        autor_nombre: Optional[str] = None,
     ) -> Recomendacion:
         """RF-21 (HU-022): el consultor complementa el resultado automático
         con recomendaciones propias. Solo sobre un diagnóstico ya evaluado o
@@ -234,6 +237,7 @@ class Diagnostico:
             contenido=contenido,
             dimension_codigo=dimension_codigo,
             autor_id=autor_id,
+            autor_nombre=autor_nombre,
             visible=visible,
         )
         self.recomendaciones.append(recomendacion)

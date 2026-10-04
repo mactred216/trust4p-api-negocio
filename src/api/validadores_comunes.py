@@ -88,3 +88,24 @@ def entero_positivo_opcional(v: Optional[int]) -> Optional[int]:
     if v is None:
         return v
     return entero_positivo(v)
+
+
+def telefono_valido(v: Optional[str]) -> Optional[str]:
+    """RF-01/RF-06: teléfono numérico (7 a 15 dígitos; admite prefijo +, espacios y guiones)."""
+    v = texto_opcional_no_vacio(v, maximo=30)
+    if v is None:
+        return v
+    digitos = re.sub(r"[ \-]", "", v)
+    if not re.fullmatch(r"\+?[0-9]{7,15}", digitos):
+        raise ValueError("El teléfono debe ser numérico (7 a 15 dígitos)")
+    return v
+
+
+def nit_valido(v: str) -> str:
+    """RF-01/RF-24: NIT numérico (5 a 15 dígitos; admite guion del dígito de verificación)."""
+    v = texto_no_vacio(v, maximo=20)
+    if not re.fullmatch(r"[0-9]{5,15}(-[0-9])?", v):
+        raise ValueError(
+            "El NIT debe ser numérico (5 a 15 dígitos, con dígito de verificación opcional)"
+        )
+    return v

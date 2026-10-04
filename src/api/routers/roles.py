@@ -99,7 +99,13 @@ async def agregar_permiso(
         "roles",
         codigo_rol,
         "actualizar",
-        valores_nuevos={"permiso_agregado": datos.codigo_permiso},
+        valores_anteriores={
+            "permisos": sorted(set(rol.permisos) - {datos.codigo_permiso})
+        },
+        valores_nuevos={
+            "permisos": sorted(rol.permisos),
+            "permiso_agregado": datos.codigo_permiso,
+        },
     )
     return RolResponse(
         id=rol.id,
@@ -131,7 +137,11 @@ async def quitar_permiso(
         "roles",
         codigo_rol,
         "actualizar",
-        valores_nuevos={"permiso_quitado": codigo_permiso},
+        valores_anteriores={"permisos": sorted(set(rol.permisos) | {codigo_permiso})},
+        valores_nuevos={
+            "permisos": sorted(rol.permisos),
+            "permiso_quitado": codigo_permiso,
+        },
     )
     return RolResponse(
         id=rol.id,

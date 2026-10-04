@@ -9,8 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.middleware.cabeceras_seguridad import CabecerasSeguridad
 from src.api.routers import (auditoria, autenticacion, consultoria, demo,
                              diagnosticos, empresas, indicadores,
-                             modelos_madurez, perfil, roles, simulaciones,
-                             solicitudes, usuarios)
+                             modelos_madurez, perfil, roles, sectores,
+                             simulaciones, solicitudes, usuarios)
 from src.infraestructura.persistencia.conexion import (obtener_base_datos,
                                                        obtener_cliente)
 from src.infraestructura.persistencia.inicializacion import \
@@ -67,6 +67,7 @@ app.include_router(consultoria.router, prefix="/v1")
 app.include_router(indicadores.router, prefix="/v1")
 app.include_router(simulaciones.router, prefix="/v1")
 app.include_router(demo.router, prefix="/v1")
+app.include_router(sectores.router, prefix="/v1")
 
 
 @app.get("/salud")

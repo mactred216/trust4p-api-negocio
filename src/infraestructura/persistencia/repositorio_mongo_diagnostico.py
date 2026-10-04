@@ -97,6 +97,7 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
                     contenido=r["contenido"],
                     prioridad=r.get("prioridad"),
                     autor_id=r.get("autor_id"),
+                    autor_nombre=r.get("autor_nombre"),
                     visible=r.get("visible", True),
                     creado_en=r["creado_en"],
                 )
@@ -160,6 +161,7 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
                 {
                     "origen": r.origen,
                     "autor_id": r.autor_id,
+                    "autor_nombre": r.autor_nombre,
                     "dimension_codigo": r.dimension_codigo,
                     "titulo": r.titulo,
                     "contenido": r.contenido,

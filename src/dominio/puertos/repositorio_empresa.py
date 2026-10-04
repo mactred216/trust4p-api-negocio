@@ -21,3 +21,6 @@ class RepositorioEmpresa(ABC):
 
     @abstractmethod
     async def listar_todas(self) -> list[Empresa]: ...
+
+    @abstractmethod
+    async def obtener_por_nit(self, nit: str) -> Optional[Empresa]: ...

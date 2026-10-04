@@ -40,15 +40,24 @@ class RepositorioMongoSolicitud(RepositorioSolicitud):
         )
         return doc is not None
 
+    async def existe_pendiente_con_nit(self, nit: str) -> bool:
+        doc = await self._coleccion.find_one(
+            {"nit": nit, "estado": EstadoSolicitud.PENDIENTE.value}
+        )
+        return doc is not None
+
     async def actualizar(self, solicitud: SolicitudAcceso) -> None:
         await self._coleccion.update_one(
             {"_id": ObjectId(solicitud.id)}, {"$set": self._a_documento(solicitud)}
         )
 
     async def listar_pendientes(self) -> list[SolicitudAcceso]:
-        cursor = self._coleccion.find({"estado": EstadoSolicitud.PENDIENTE.value})
-        documentos = await cursor.to_list(length=None)
-        return [self._a_entidad(doc) for doc in documentos]
+        return await self.listar(EstadoSolicitud.PENDIENTE.value)
+
+    async def listar(self, estado: Optional[str] = None) -> list[SolicitudAcceso]:
+        filtro = {"estado": estado} if estado else {}
+        cursor = self._coleccion.find(filtro).sort("creado_en", -1)
+        return [self._a_entidad(d) for d in await cursor.to_list(length=None)]
 
     def _a_entidad(self, doc: dict) -> SolicitudAcceso:
         return SolicitudAcceso(
@@ -61,6 +70,15 @@ class RepositorioMongoSolicitud(RepositorioSolicitud):
             motivo_rechazo=doc.get("motivo_rechazo"),
             creado_en=doc["creado_en"],
             resuelto_en=doc.get("resuelto_en"),
+            nit=doc.get("nit"),
+            sector_codigo=doc.get("sector_codigo"),
+            sector_nombre=doc.get("sector_nombre"),
+            numero_empleados=doc.get("numero_empleados"),
+            ciudad=doc.get("ciudad"),
+            cargo=doc.get("cargo"),
+            telefono=doc.get("telefono"),
+            acepto_tratamiento_en=doc.get("acepto_tratamiento_en"),
+            version_politica_aceptada=doc.get("version_politica_aceptada"),
         )
 
     def _a_documento(self, solicitud: SolicitudAcceso) -> dict:
@@ -73,4 +91,13 @@ class RepositorioMongoSolicitud(RepositorioSolicitud):
             "motivo_rechazo": solicitud.motivo_rechazo,
             "creado_en": solicitud.creado_en,
             "resuelto_en": solicitud.resuelto_en,
+            "nit": solicitud.nit,
+            "sector_codigo": solicitud.sector_codigo,
+            "sector_nombre": solicitud.sector_nombre,
+            "numero_empleados": solicitud.numero_empleados,
+            "ciudad": solicitud.ciudad,
+            "cargo": solicitud.cargo,
+            "telefono": solicitud.telefono,
+            "acepto_tratamiento_en": solicitud.acepto_tratamiento_en,
+            "version_politica_aceptada": solicitud.version_politica_aceptada,
         }

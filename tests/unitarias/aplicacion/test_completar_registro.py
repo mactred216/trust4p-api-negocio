@@ -114,3 +114,104 @@ async def test_token_ya_usado_falla():
             apellidos="B",
             acepto_tratamiento=True,
         )
+
+
+# ---------------- Datos de la invitación (pantalla de registro) ----------------
+
+
+def armar_consultar_invitacion(token, usuario=None, solicitud=None, empresa=None):
+    from src.aplicacion.casos_uso.completar_registro import ConsultarInvitacion
+
+    repo_token = AsyncMock()
+    repo_token.obtener_por_codigo.return_value = token
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = usuario
+    repo_solicitud = AsyncMock()
+    repo_solicitud.obtener_por_id.return_value = solicitud
+    repo_empresa = AsyncMock()
+    repo_empresa.obtener_por_id.return_value = empresa
+    return ConsultarInvitacion(repo_token, repo_usuario, repo_solicitud, repo_empresa)
+
+
+@pytest.mark.asyncio
+async def test_consultar_invitacion_de_solicitud_aprobada():
+    solicitud = crear_solicitud_aprobada()
+    solicitud.nit = "900123456-7"
+    caso_uso = armar_consultar_invitacion(crear_token_prueba(), solicitud=solicitud)
+
+    datos = await caso_uso.ejecutar("codigo")
+
+    assert datos.correo == "ana@innovatech.com"
+    assert datos.nombre == "Ana Pérez"
+    assert datos.rol_codigo == "representante"
+    assert datos.empresa_nombre == "InnovaTech"
+    assert datos.empresa_nit == "900123456-7"
+
+
+@pytest.mark.asyncio
+async def test_consultar_invitacion_de_usuario_creado_por_el_administrador():
+    from src.dominio.entidades.empresa import Empresa, Sector
+
+    token = crear_token_prueba()
+    token.solicitud_id = None
+    token.usuario_id = "u-1"
+    usuario = Usuario(
+        id="u-1",
+        correo="ana@innovatech.com",
+        clave_hash="x",
+        nombres="Ana",
+        apellidos="Pérez",
+        rol=Rol(codigo="representante"),
+        empresa_id="emp-1",
+        registro_pendiente=True,
+    )
+    empresa = Empresa(
+        id="emp-1",
+        nombre="InnovaTech",
+        nit="900123456-7",
+        sector=Sector("s", "tecnologia", "Tecnología"),
+    )
+    caso_uso = armar_consultar_invitacion(token, usuario=usuario, empresa=empresa)
+
+    datos = await caso_uso.ejecutar("codigo")
+
+    assert datos.nombre == "Ana Pérez"
+    assert datos.empresa_nombre == "InnovaTech"
+
+
+@pytest.mark.asyncio
+async def test_consultar_invitacion_rechaza_codigo_inexistente():
+    caso_uso = armar_consultar_invitacion(None)
+
+    with pytest.raises(TokenInvalido):
+        await caso_uso.ejecutar("no-existe")
+
+
+@pytest.mark.asyncio
+async def test_consultar_invitacion_rechaza_token_de_otro_tipo():
+    token = crear_token_prueba()
+    token.tipo = TipoToken.RESTABLECER_CLAVE
+    caso_uso = armar_consultar_invitacion(token, solicitud=crear_solicitud_aprobada())
+
+    with pytest.raises(TokenInvalido):
+        await caso_uso.ejecutar("codigo")
+
+
+@pytest.mark.asyncio
+async def test_consultar_invitacion_rechaza_usuario_que_ya_completo_su_registro():
+    token = crear_token_prueba()
+    token.solicitud_id = None
+    token.usuario_id = "u-1"
+    usuario = Usuario(
+        id="u-1",
+        correo="ana@innovatech.com",
+        clave_hash="x",
+        nombres="Ana",
+        apellidos="Pérez",
+        rol=Rol(codigo="representante"),
+        registro_pendiente=False,
+    )
+    caso_uso = armar_consultar_invitacion(token, usuario=usuario)
+
+    with pytest.raises(TokenInvalido):
+        await caso_uso.ejecutar("codigo")

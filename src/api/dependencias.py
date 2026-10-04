@@ -47,12 +47,6 @@ def obtener_repositorio_solicitud(
     return RepositorioMongoSolicitud(db)
 
 
-def obtener_caso_uso_radicar_solicitud(
-    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
-) -> RadicarSolicitud:
-    return RadicarSolicitud(repo)
-
-
 def obtener_servicio_correo() -> ClienteCorreoSMTP:
     return ClienteCorreoSMTP()
 
@@ -128,20 +122,6 @@ def obtener_repositorio_token(
     return RepositorioMongoToken(db)
 
 
-def obtener_caso_uso_resolver_solicitud(
-    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
-    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
-    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
-    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
-    repo_notificacion: RepositorioMongoNotificacion = Depends(
-        obtener_repositorio_notificacion
-    ),
-) -> ResolverSolicitud:
-    return ResolverSolicitud(
-        repo_solicitud, repo_empresa, repo_token, servicio_correo, repo_notificacion
-    )
-
-
 def obtener_caso_uso_completar_registro(
     repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
@@ -162,14 +142,6 @@ def obtener_caso_uso_solicitar_restablecimiento(
     return SolicitarRestablecimiento(repo_usuario, repo_token, servicio_correo)
 
 
-def obtener_caso_uso_restablecer_contrasena(
-    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
-    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
-    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
-) -> RestablecerContrasena:
-    return RestablecerContrasena(repo_usuario, repo_token, repo_sesion)
-
-
 def obtener_caso_uso_listar_usuarios(
     repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
 ) -> ListarUsuarios:
@@ -184,8 +156,9 @@ def obtener_caso_uso_consultar_usuario(
 
 def obtener_caso_uso_editar_usuario(
     repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
 ) -> EditarUsuario:
-    return EditarUsuario(repo)
+    return EditarUsuario(repo, repo_empresa)
 
 
 def obtener_caso_uso_desactivar_usuario(
@@ -505,8 +478,11 @@ def obtener_caso_uso_completar_diagnostico(
         obtener_repositorio_diagnostico
     ),
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_modelo: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
 ) -> CompletarDiagnostico:
-    return CompletarDiagnostico(repo_diagnostico, repo_usuario)
+    return CompletarDiagnostico(repo_diagnostico, repo_usuario, repo_modelo)
 
 
 def obtener_caso_uso_listar_diagnosticos_empresa(
@@ -696,7 +672,143 @@ def obtener_caso_uso_iniciar_sesion(
     repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
     repo_rol: RepositorioMongoRol = Depends(obtener_repositorio_rol),
     repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
 ) -> IniciarSesion:
     return IniciarSesion(
-        repo_usuario, repo_sesion, repo_rol, repo_empresa, BLOQUEO_CORREOS_DESCONOCIDOS
+        repo_usuario,
+        repo_sesion,
+        repo_rol,
+        repo_empresa,
+        BLOQUEO_CORREOS_DESCONOCIDOS,
+        repo_auditoria,
+    )
+
+
+from src.aplicacion.casos_uso.gestionar_empresas import \
+    CrearEmpresa  # noqa: E402
+from src.aplicacion.casos_uso.gestionar_usuarios import \
+    CrearUsuario  # noqa: E402
+
+
+def obtener_caso_uso_crear_empresa(
+    repo: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+) -> CrearEmpresa:
+    return CrearEmpresa(repo)
+
+
+def obtener_caso_uso_crear_usuario(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
+) -> CrearUsuario:
+    return CrearUsuario(
+        repo_usuario, repo_empresa, repo_token, servicio_correo, repo_notificacion
+    )
+
+
+def obtener_caso_uso_restablecer_contrasena(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+) -> RestablecerContrasena:
+    return RestablecerContrasena(repo_usuario, repo_token, repo_sesion, repo_auditoria)
+
+
+from src.aplicacion.casos_uso.consultar_solicitudes import (  # noqa: E402
+    ConsultarSolicitud, ListarSolicitudes)
+from src.infraestructura.persistencia.repositorio_mongo_sector import \
+    RepositorioMongoSector  # noqa: E402
+
+
+def obtener_repositorio_sector(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoSector:
+    return RepositorioMongoSector(db)
+
+
+def obtener_caso_uso_radicar_solicitud(
+    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_sector: RepositorioMongoSector = Depends(obtener_repositorio_sector),
+) -> RadicarSolicitud:
+    return RadicarSolicitud(
+        repo,
+        repo_usuario,
+        servicio_correo,
+        repo_notificacion,
+        repo_empresa,
+        repo_sector,
+    )
+
+
+def obtener_caso_uso_resolver_solicitud(
+    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
+    repo_sector: RepositorioMongoSector = Depends(obtener_repositorio_sector),
+) -> ResolverSolicitud:
+    return ResolverSolicitud(
+        repo_solicitud,
+        repo_empresa,
+        repo_token,
+        servicio_correo,
+        repo_notificacion,
+        repo_sector,
+    )
+
+
+def obtener_caso_uso_listar_solicitudes(
+    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+) -> ListarSolicitudes:
+    return ListarSolicitudes(repo)
+
+
+def obtener_caso_uso_consultar_solicitud(
+    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+) -> ConsultarSolicitud:
+    return ConsultarSolicitud(repo)
+
+
+from src.aplicacion.casos_uso.completar_registro import \
+    ConsultarInvitacion  # noqa: E402
+
+
+def obtener_caso_uso_consultar_invitacion(
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+) -> ConsultarInvitacion:
+    return ConsultarInvitacion(repo_token, repo_usuario, repo_solicitud, repo_empresa)
+
+
+from src.aplicacion.casos_uso.gestionar_consultoria import \
+    ObtenerCuestionarioAsignado  # noqa: E402
+
+
+def obtener_caso_uso_obtener_cuestionario_asignado(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_modelo_madurez: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
+) -> ObtenerCuestionarioAsignado:
+    return ObtenerCuestionarioAsignado(
+        repo_usuario, repo_diagnostico, repo_modelo_madurez
     )

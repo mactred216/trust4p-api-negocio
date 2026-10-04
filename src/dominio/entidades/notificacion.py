@@ -14,6 +14,8 @@ TIPOS_VALIDOS = {
     "diagnostico_fallido",
     "recomendacion_registrada",
     "diagnostico_cerrado",
+    "solicitud_nueva",
+    "solicitud_rechazada",
 }
 
 

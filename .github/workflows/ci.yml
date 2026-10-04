@@ -1,0 +1,52 @@
+name: CI
+
+# Integración continua: toda propuesta de cambio debe pasar el orden de
+# importaciones y las pruebas unitarias; las de integración corren contra una
+# base de pruebas aislada (trust4p_test) cuando el repositorio tiene el secreto
+# MONGO_URI_PRUEBAS.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt pytest-cov
+
+      - name: Orden de importaciones
+        run: python -m isort --check-only src tests scripts
+
+      - name: Pruebas unitarias con cobertura
+        run: python -m pytest tests/unitarias -q --cov=src --cov-report=term-missing:skip-covered --cov-report=xml
+
+      - name: Pruebas de integración (base de pruebas aislada)
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI_PRUEBAS }}
+        if: env.MONGO_URI != ''
+        run: python -m pytest tests/integracion -q
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: coverage.xml
+
+  imagen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir la imagen
+        run: docker build -t trust4p-api-negocio:ci .
+      - name: Humo (la aplicación importa y arranca)
+        run: |
+          docker run --rm -e MONGO_URI=mongodb://localhost:1/x trust4p-api-negocio:ci \
+            python -c "import src.api.main; print('importa')"

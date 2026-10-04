@@ -6,6 +6,7 @@ from src.api.dependencias import (obtener_caso_uso_radicar_solicitud,
                                   obtener_repositorio_auditoria)
 from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
+from src.api.middleware.limites import limite_solicitudes
 from src.api.validadores_comunes import texto_no_vacio
 from src.aplicacion.casos_uso.radicar_solicitud import (RadicarSolicitud,
                                                         SolicitudDuplicada)
@@ -58,7 +59,12 @@ class EmpresaResponse(BaseModel):
     nombre: str
 
 
-@router.post("", response_model=SolicitudResponse, status_code=201)
+@router.post(
+    "",
+    response_model=SolicitudResponse,
+    status_code=201,
+    dependencies=[Depends(limite_solicitudes)],
+)
 async def radicar_solicitud(
     datos: RadicarSolicitudRequest,
     caso_uso: RadicarSolicitud = Depends(obtener_caso_uso_radicar_solicitud),
@@ -92,7 +98,7 @@ async def aprobar_solicitud(
     solicitud_id: str,
     datos: AprobarSolicitudRequest,
     caso_uso: ResolverSolicitud = Depends(obtener_caso_uso_resolver_solicitud),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "solicitudes.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     sector = Sector(
@@ -128,7 +134,7 @@ async def rechazar_solicitud(
     solicitud_id: str,
     datos: RechazarSolicitudRequest,
     caso_uso: ResolverSolicitud = Depends(obtener_caso_uso_resolver_solicitud),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "solicitudes.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:

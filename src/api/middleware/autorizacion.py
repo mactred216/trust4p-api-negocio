@@ -21,8 +21,12 @@ async def obtener_usuario_autenticado(
     return usuario_id
 
 
-def requiere_rol(rol_esperado: str):
-    """Fábrica de dependencias: exige un rol específico para el endpoint."""
+def requiere_rol(rol_esperado: str, permiso: str | None = None):
+    """Fábrica de dependencias: exige un rol específico para el endpoint y,
+    si se indica, un permiso (RF-27, HU-028). Los permisos efectivos se
+    resuelven al crear la sesión (R-16); al cambiar los de un rol se revocan
+    las sesiones activas (R-17), por lo que retirar un permiso se aplica de
+    inmediato."""
 
     async def verificar(
         request: Request,
@@ -37,6 +41,10 @@ def requiere_rol(rol_esperado: str):
             raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
 
         if sesion["rol_codigo"] != rol_esperado:
+            raise HTTPException(
+                status_code=403, detail="No autorizado para esta operación"
+            )
+        if permiso is not None and permiso not in sesion.get("permisos", []):
             raise HTTPException(
                 status_code=403, detail="No autorizado para esta operación"
             )

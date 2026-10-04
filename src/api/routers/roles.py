@@ -47,7 +47,7 @@ class PermisoRequest(BaseModel):
 @router.get("", response_model=list[RolResponse])
 async def listar_roles(
     caso_uso: ListarRoles = Depends(obtener_caso_uso_listar_roles),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "roles.gestionar")),
 ):
     roles = await caso_uso.ejecutar()
     return [
@@ -65,7 +65,7 @@ async def listar_roles(
 @router.get("/permisos", response_model=list[PermisoResponse])
 async def listar_permisos(
     caso_uso: ListarPermisos = Depends(obtener_caso_uso_listar_permisos),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "roles.gestionar")),
 ):
     permisos = await caso_uso.ejecutar()
     return [
@@ -81,7 +81,7 @@ async def agregar_permiso(
     codigo_rol: str,
     datos: PermisoRequest,
     caso_uso: AgregarPermisoARol = Depends(obtener_caso_uso_agregar_permiso),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "roles.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -115,7 +115,7 @@ async def quitar_permiso(
     codigo_rol: str,
     codigo_permiso: str,
     caso_uso: QuitarPermisoDeRol = Depends(obtener_caso_uso_quitar_permiso),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "roles.gestionar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:

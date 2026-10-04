@@ -74,7 +74,7 @@ async def listar_empresas_asignadas(
     caso_uso: ListarEmpresasAsignadas = Depends(
         obtener_caso_uso_listar_empresas_asignadas
     ),
-    usuario_id: str = Depends(requiere_rol("consultor")),
+    usuario_id: str = Depends(requiere_rol("consultor", "diagnosticos.consultar")),
 ):
     try:
         resumenes = await caso_uso.ejecutar(
@@ -112,7 +112,7 @@ async def listar_diagnosticos_de_empresa(
     caso_uso: ListarDiagnosticosDeEmpresaAsignada = Depends(
         obtener_caso_uso_listar_diagnosticos_empresa_asignada
     ),
-    usuario_id: str = Depends(requiere_rol("consultor")),
+    usuario_id: str = Depends(requiere_rol("consultor", "diagnosticos.consultar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -143,7 +143,7 @@ async def consultar_diagnostico_asignado(
     caso_uso: ConsultarDiagnosticoAsignado = Depends(
         obtener_caso_uso_consultar_diagnostico_asignado
     ),
-    usuario_id: str = Depends(requiere_rol("consultor")),
+    usuario_id: str = Depends(requiere_rol("consultor", "diagnosticos.consultar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -178,7 +178,7 @@ async def registrar_recomendacion(
     caso_uso: RegistrarRecomendacion = Depends(
         obtener_caso_uso_registrar_recomendacion
     ),
-    usuario_id: str = Depends(requiere_rol("consultor")),
+    usuario_id: str = Depends(requiere_rol("consultor", "recomendaciones.registrar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:

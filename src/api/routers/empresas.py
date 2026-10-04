@@ -69,7 +69,7 @@ def _a_response(empresa) -> EmpresaResponse:
 async def listar_empresas(
     solo_activas: bool = Query(default=True),
     caso_uso: ListarEmpresas = Depends(obtener_caso_uso_listar_empresas),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "empresas.gestionar")),
 ):
     empresas = await caso_uso.ejecutar(solo_activas=solo_activas)
     return [_a_response(e) for e in empresas]
@@ -79,7 +79,7 @@ async def listar_empresas(
 async def consultar_empresa(
     empresa_id: str,
     caso_uso: ConsultarEmpresa = Depends(obtener_caso_uso_consultar_empresa),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "empresas.gestionar")),
 ):
     try:
         empresa = await caso_uso.ejecutar(empresa_id)
@@ -93,7 +93,7 @@ async def editar_empresa(
     empresa_id: str,
     datos: EditarEmpresaRequest,
     caso_uso: EditarEmpresa = Depends(obtener_caso_uso_editar_empresa),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "empresas.gestionar")),
 ):
     try:
         empresa = await caso_uso.ejecutar(
@@ -112,7 +112,9 @@ async def editar_empresa(
 async def desactivar_empresa(
     empresa_id: str,
     caso_uso: DesactivarEmpresa = Depends(obtener_caso_uso_desactivar_empresa),
-    usuario_actual_id: str = Depends(requiere_rol("administrador")),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "empresas.gestionar")
+    ),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:
@@ -134,7 +136,7 @@ async def desactivar_empresa(
 async def reactivar_empresa(
     empresa_id: str,
     caso_uso: ReactivarEmpresa = Depends(obtener_caso_uso_reactivar_empresa),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "empresas.gestionar")),
 ):
     try:
         await caso_uso.ejecutar(empresa_id)

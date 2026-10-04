@@ -63,7 +63,7 @@ async def consultar_indicadores(
     caso_uso: ConsultarIndicadoresAgregados = Depends(
         obtener_caso_uso_consultar_indicadores
     ),
-    usuario_id: str = Depends(requiere_rol("consultor")),
+    usuario_id: str = Depends(requiere_rol("consultor", "indicadores.consultar")),
 ):
     try:
         indicadores = await caso_uso.ejecutar(
@@ -90,7 +90,7 @@ async def exportar_datos_agregados(
     caso_uso: ExportarDatosAgregados = Depends(
         obtener_caso_uso_exportar_datos_agregados
     ),
-    usuario_id: str = Depends(requiere_rol("administrador")),
+    usuario_id: str = Depends(requiere_rol("administrador", "datos.exportar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:

@@ -30,6 +30,10 @@ class RepositorioMongoEmpresa(RepositorioEmpresa):
             return None
         return self._a_entidad(doc)
 
+    async def obtener_por_nit(self, nit: str) -> Optional[Empresa]:
+        doc = await self._coleccion.find_one({"nit": nit})
+        return self._a_entidad(doc) if doc else None
+
     async def actualizar(self, empresa: Empresa) -> None:
         await self._coleccion.update_one(
             {"_id": ObjectId(empresa.id)},

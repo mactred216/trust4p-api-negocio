@@ -82,6 +82,7 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             telefono=doc.get("telefono"),
             acepto_tratamiento_en=doc.get("acepto_tratamiento_en"),
             version_politica_aceptada=doc.get("version_politica_aceptada"),
+            registro_pendiente=doc.get("registro_pendiente", False),
         )
 
     def _a_documento(self, usuario: Usuario) -> dict:
@@ -100,6 +101,7 @@ class RepositorioMongoUsuario(RepositorioUsuario):
             "telefono": usuario.telefono,
             "acepto_tratamiento_en": usuario.acepto_tratamiento_en,
             "version_politica_aceptada": usuario.version_politica_aceptada,
+            "registro_pendiente": usuario.registro_pendiente,
             "asignaciones": [
                 {
                     "empresa_id": a.empresa_id,

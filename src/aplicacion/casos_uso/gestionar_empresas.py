@@ -1,6 +1,6 @@
 from typing import Optional
 
-from src.dominio.entidades.empresa import Empresa
+from src.dominio.entidades.empresa import Empresa, Sector
 from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
 
 
@@ -8,14 +8,65 @@ class EmpresaNoEncontrada(Exception):
     pass
 
 
-class ListarEmpresas:
+class NitYaRegistrado(Exception):
+    pass
+
+
+class CrearEmpresa:
+    """RF-24 paso 1: crea la empresa validando que el NIT no exista."""
+
     def __init__(self, repo: RepositorioEmpresa):
         self._empresas = repo
 
-    async def ejecutar(self, solo_activas: bool = True) -> list[Empresa]:
-        if solo_activas:
-            return await self._empresas.listar_activas()
-        return await self._empresas.listar_todas()
+    async def ejecutar(
+        self,
+        nit: str,
+        nombre: str,
+        sector: Sector,
+        numero_empleados: int,
+        ciudad: Optional[str] = None,
+    ) -> Empresa:
+        if await self._empresas.obtener_por_nit(nit) is not None:
+            raise NitYaRegistrado()
+        return await self._empresas.guardar(
+            Empresa(
+                id=None,
+                nombre=nombre,
+                sector=sector,
+                nit=nit,
+                numero_empleados=numero_empleados,
+                ciudad=ciudad,
+            )
+        )
+
+
+class ListarEmpresas:
+    """RF-24 paso 2: listado con filtros por nombre, sector y estado."""
+
+    def __init__(self, repo: RepositorioEmpresa):
+        self._empresas = repo
+
+    async def ejecutar(
+        self,
+        solo_activas: bool = True,
+        nombre: Optional[str] = None,
+        sector_codigo: Optional[str] = None,
+        estado: Optional[str] = None,
+    ) -> list[Empresa]:
+        if estado is not None:
+            if estado not in ("activa", "inactiva"):
+                raise ValueError("Estado inválido; use 'activa' o 'inactiva'")
+            empresas = await self._empresas.listar_todas()
+            empresas = [e for e in empresas if e.activo == (estado == "activa")]
+        elif solo_activas:
+            empresas = await self._empresas.listar_activas()
+        else:
+            empresas = await self._empresas.listar_todas()
+        if nombre:
+            empresas = [e for e in empresas if nombre.lower() in e.nombre.lower()]
+        if sector_codigo:
+            empresas = [e for e in empresas if e.sector.codigo == sector_codigo]
+        return empresas
 
 
 class ConsultarEmpresa:
@@ -47,7 +98,10 @@ class EditarEmpresa:
 
         if nombre is not None:
             empresa.nombre = nombre
-        if nit is not None:
+        if nit is not None and nit != empresa.nit:
+            existente = await self._empresas.obtener_por_nit(nit)
+            if existente is not None and existente.id != empresa.id:
+                raise NitYaRegistrado()
             empresa.nit = nit
         if numero_empleados is not None:
             empresa.numero_empleados = numero_empleados

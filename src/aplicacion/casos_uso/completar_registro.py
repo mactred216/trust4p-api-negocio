@@ -21,6 +21,11 @@ class AutorizacionRequerida(Exception):
 
 
 class CompletarRegistro:
+    """RF-03: consume una invitación de un solo uso. La invitación nace de una
+    solicitud aprobada (RF-02: se crea el usuario representante) o de un
+    usuario creado por el administrador (RF-25: se completa la cuenta
+    pendiente)."""
+
     def __init__(
         self,
         repo_token: RepositorioToken,
@@ -43,29 +48,49 @@ class CompletarRegistro:
             raise AutorizacionRequerida()
 
         token = await self._tokens.obtener_por_codigo(codigo_token)
-        if token is None or not token.esta_vigente():
-            raise TokenInvalido()
-
-        solicitud = await self._solicitudes.obtener_por_id(token.solicitud_id)
-        if solicitud is None:
+        if (
+            token is None
+            or token.tipo != TipoToken.INVITACION
+            or not token.esta_vigente()
+        ):
             raise TokenInvalido()
 
         clave_hash = bcrypt.hashpw(clave.encode(), bcrypt.gensalt()).decode()
+        ahora = datetime.now(timezone.utc)
 
-        usuario = Usuario(
-            id=None,
-            correo=solicitud.correo_solicitante,
-            clave_hash=clave_hash,
-            nombres=nombres,
-            apellidos=apellidos,
-            rol=Rol(codigo="representante", permisos=[]),
-            empresa_id=solicitud.empresa_id,
-            acepto_tratamiento_en=datetime.now(timezone.utc),
-            version_politica_aceptada=VERSION_POLITICA_TRATAMIENTO_DATOS,
-        )
-        usuario = await self._usuarios.guardar(usuario)
+        if token.usuario_id:
+            usuario = await self._usuarios.obtener_por_id(token.usuario_id)
+            if usuario is None or not usuario.registro_pendiente:
+                raise TokenInvalido()
+            usuario.clave_hash = clave_hash
+            usuario.nombres = nombres
+            usuario.apellidos = apellidos
+            usuario.acepto_tratamiento_en = ahora
+            usuario.version_politica_aceptada = VERSION_POLITICA_TRATAMIENTO_DATOS
+            usuario.registro_pendiente = False
+            await self._usuarios.actualizar(usuario)
+        else:
+            solicitud = (
+                await self._solicitudes.obtener_por_id(token.solicitud_id)
+                if token.solicitud_id
+                else None
+            )
+            if solicitud is None:
+                raise TokenInvalido()
+            usuario = await self._usuarios.guardar(
+                Usuario(
+                    id=None,
+                    correo=solicitud.correo_solicitante,
+                    clave_hash=clave_hash,
+                    nombres=nombres,
+                    apellidos=apellidos,
+                    rol=Rol(codigo="representante", permisos=[]),
+                    empresa_id=solicitud.empresa_id,
+                    acepto_tratamiento_en=ahora,
+                    version_politica_aceptada=VERSION_POLITICA_TRATAMIENTO_DATOS,
+                )
+            )
 
         token.marcar_usado()
         await self._tokens.actualizar(token)
-
         return usuario

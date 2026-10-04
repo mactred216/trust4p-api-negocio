@@ -1,10 +1,11 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 
 from src.api.dependencias import (obtener_caso_uso_asignar_consultor,
                                   obtener_caso_uso_consultar_usuario,
+                                  obtener_caso_uso_crear_usuario,
                                   obtener_caso_uso_desactivar_usuario,
                                   obtener_caso_uso_desbloquear_usuario,
                                   obtener_caso_uso_editar_usuario,
@@ -18,6 +19,8 @@ from src.aplicacion.casos_uso.asignar_consultor import (AsignarConsultor,
                                                         EmpresaInactiva,
                                                         EmpresaNoEncontrada)
 from src.aplicacion.casos_uso.gestionar_usuarios import (ConsultarUsuario,
+                                                         CorreoYaRegistrado,
+                                                         CrearUsuario,
                                                          DesactivarUsuario,
                                                          DesbloquearUsuario,
                                                          EditarUsuario,
@@ -40,12 +43,46 @@ class UsuarioResponse(BaseModel):
     rol_codigo: str
     empresa_id: Optional[str]
     activo: bool
+    registro_pendiente: bool = False
+
+
+class CrearUsuarioRequest(BaseModel):
+    correo: EmailStr
+    nombres: str
+    apellidos: str
+    rol_codigo: str
+    empresa_id: Optional[str] = None
+
+    @field_validator("nombres", "apellidos")
+    @classmethod
+    def _nombre_valido(cls, v: str) -> str:
+        return texto_no_vacio(v, minimo=2, maximo=200)
+
+    @field_validator("rol_codigo")
+    @classmethod
+    def _rol_valido(cls, v: str) -> str:
+        if v not in ROLES_VALIDOS:
+            raise ValueError(
+                f"Rol inválido. Debe ser uno de: {', '.join(sorted(ROLES_VALIDOS))}"
+            )
+        return v
+
+    @field_validator("empresa_id")
+    @classmethod
+    def _empresa_valida(cls, v: Optional[str]) -> Optional[str]:
+        return texto_opcional_no_vacio(v, maximo=50)
 
 
 class EditarUsuarioRequest(BaseModel):
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
     rol_codigo: Optional[str] = None
+    empresa_id: Optional[str] = None
+
+    @field_validator("empresa_id")
+    @classmethod
+    def _empresa_si_viene(cls, v: Optional[str]) -> Optional[str]:
+        return texto_opcional_no_vacio(v, maximo=50)
 
     @field_validator("nombres", "apellidos")
     @classmethod
@@ -82,7 +119,55 @@ def _a_response(usuario) -> UsuarioResponse:
         rol_codigo=usuario.rol.codigo,
         empresa_id=usuario.empresa_id,
         activo=usuario.activo,
+        registro_pendiente=usuario.registro_pendiente,
     )
+
+
+@router.post(
+    "",
+    response_model=UsuarioResponse,
+    status_code=201,
+    summary="Crear un usuario",
+    description="RF-25/HU-026: el administrador crea un usuario con rol y, si es "
+    "representante, empresa. Se valida que el correo no esté registrado y se "
+    "envía una invitación para que la persona defina su contraseña.",
+)
+async def crear_usuario(
+    datos: CrearUsuarioRequest,
+    caso_uso: CrearUsuario = Depends(obtener_caso_uso_crear_usuario),
+    usuario_actual_id: str = Depends(
+        requiere_rol("administrador", "usuarios.gestionar")
+    ),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        usuario = await caso_uso.ejecutar(
+            correo=datos.correo,
+            nombres=datos.nombres,
+            apellidos=datos.apellidos,
+            rol_codigo=datos.rol_codigo,
+            empresa_id=datos.empresa_id,
+        )
+    except CorreoYaRegistrado:
+        raise HTTPException(
+            status_code=409, detail="Ya existe un usuario con ese correo"
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "usuarios",
+        usuario.id,
+        "crear",
+        valores_nuevos={
+            "correo": usuario.correo,
+            "rol": usuario.rol.codigo,
+            "empresa_id": usuario.empresa_id,
+        },
+    )
+    return _a_response(usuario)
 
 
 @router.get("", response_model=list[UsuarioResponse])
@@ -126,6 +211,8 @@ async def editar_usuario(
         usuario = await caso_uso.ejecutar(usuario_id, **campos)
     except UsuarioNoEncontrado:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return _a_response(usuario)
 
 

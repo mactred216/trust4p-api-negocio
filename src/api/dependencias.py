@@ -184,8 +184,9 @@ def obtener_caso_uso_consultar_usuario(
 
 def obtener_caso_uso_editar_usuario(
     repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
 ) -> EditarUsuario:
-    return EditarUsuario(repo)
+    return EditarUsuario(repo, repo_empresa)
 
 
 def obtener_caso_uso_desactivar_usuario(
@@ -699,4 +700,30 @@ def obtener_caso_uso_iniciar_sesion(
 ) -> IniciarSesion:
     return IniciarSesion(
         repo_usuario, repo_sesion, repo_rol, repo_empresa, BLOQUEO_CORREOS_DESCONOCIDOS
+    )
+
+
+from src.aplicacion.casos_uso.gestionar_empresas import \
+    CrearEmpresa  # noqa: E402
+from src.aplicacion.casos_uso.gestionar_usuarios import \
+    CrearUsuario  # noqa: E402
+
+
+def obtener_caso_uso_crear_empresa(
+    repo: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+) -> CrearEmpresa:
+    return CrearEmpresa(repo)
+
+
+def obtener_caso_uso_crear_usuario(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
+) -> CrearUsuario:
+    return CrearUsuario(
+        repo_usuario, repo_empresa, repo_token, servicio_correo, repo_notificacion
     )

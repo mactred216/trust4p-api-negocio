@@ -10,6 +10,7 @@ from src.api.dependencias import (obtener_caso_uso_actualizar_perfil,
                                   obtener_caso_uso_eliminar_datos_personales)
 from src.api.middleware.autorizacion import obtener_usuario_autenticado
 from src.api.validadores_comunes import (clave_cumple_politica,
+                                         telefono_valido,
                                          texto_opcional_no_vacio)
 from src.aplicacion.casos_uso.gestionar_perfil import (ActualizarPerfil,
                                                        CambiarContrasena,
@@ -42,10 +43,15 @@ class ActualizarPerfilRequest(BaseModel):
     cargo: Optional[str] = None
     telefono: Optional[str] = None
 
-    @field_validator("nombres", "apellidos", "cargo", "telefono")
+    @field_validator("nombres", "apellidos", "cargo")
     @classmethod
     def _si_viene_no_vacio(cls, v: Optional[str]) -> Optional[str]:
         return texto_opcional_no_vacio(v, maximo=200)
+
+    @field_validator("telefono")
+    @classmethod
+    def _telefono_valido(cls, v: Optional[str]) -> Optional[str]:
+        return telefono_valido(v)
 
 
 class CambiarContrasenaRequest(BaseModel):

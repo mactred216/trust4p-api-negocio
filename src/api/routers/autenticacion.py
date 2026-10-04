@@ -7,6 +7,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 from src.api.dependencias import (obtener_caso_uso_completar_registro,
                                   obtener_caso_uso_consultar_invitacion,
                                   obtener_caso_uso_iniciar_sesion)
+from src.api.middleware.limite_peticiones import origen_de
 from src.api.middleware.limites import (limite_envio_correo, limite_login,
                                         limite_token)
 from src.api.validadores_comunes import clave_cumple_politica, texto_no_vacio
@@ -124,7 +125,7 @@ async def login(
         token = await caso_uso.ejecutar(
             datos.correo,
             datos.clave,
-            ip=request.client.host if request.client else None,
+            ip=origen_de(request),
         )
     except CredencialesInvalidas:
         raise HTTPException(status_code=401, detail="Credenciales inválidas")

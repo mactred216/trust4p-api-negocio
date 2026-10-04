@@ -1,0 +1,73 @@
+name: Despliegue
+
+# Despliegue continuo: cada integración a main verifica, construye la imagen,
+# la sube a Artifact Registry y despliega una nueva revisión en Cloud Run.
+# La autenticación es por Workload Identity Federation (sin llaves de servicio);
+# los valores salen de `terraform output` del repositorio trust4p-infraestructura
+# y se guardan como variables del repositorio (Settings > Variables).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: despliegue
+  cancel-in-progress: false
+
+env:
+  REGION: us-central1
+  PROYECTO: trust-4p
+  SERVICIO: trust4p-api-negocio
+  IMAGEN: us-central1-docker.pkg.dev/trust-4p/trust4p-imagenes/api-negocio
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m isort --check-only src tests scripts
+      - run: python -m pytest tests/unitarias -q
+
+  desplegar:
+    needs: verificar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Construir y subir la imagen
+        run: |
+          docker build -t "$IMAGEN:${GITHUB_SHA}" -t "$IMAGEN:latest" .
+          docker push "$IMAGEN:${GITHUB_SHA}"
+          docker push "$IMAGEN:latest"
+
+      - name: Desplegar en Cloud Run
+        run: |
+          gcloud run deploy "$SERVICIO" \
+            --project "$PROYECTO" --region "$REGION" \
+            --image "$IMAGEN:${GITHUB_SHA}" --quiet
+
+      - name: Verificar el despliegue
+        run: |
+          URL=$(gcloud run services describe "$SERVICIO" --project "$PROYECTO" --region "$REGION" --format 'value(status.url)')
+          echo "API de negocio: $URL"
+          # Catálogo público de sectores: confirma que la app arranca y llega a MongoDB.
+          curl -fsS "$URL/v1/sectores" | head -c 200

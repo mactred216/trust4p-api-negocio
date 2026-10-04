@@ -64,3 +64,55 @@ def test_depura_origenes_vencidos_cuando_hay_demasiados():
             limitador.registrar("d")
 
     assert set(limitador._registros) == {"d"}
+
+
+# ---------------- Origen detrás de proxies (Cloud Run) ----------------
+
+
+class PeticionConProxy:
+    def __init__(self, xff=None, host="10.0.0.1"):
+        self.client = type("C", (), {"host": host})()
+        self.headers = {} if xff is None else {"x-forwarded-for": xff}
+
+
+def test_origen_usa_la_ip_de_conexion_sin_proxies(monkeypatch):
+    from src.api.middleware.limite_peticiones import origen_de
+
+    monkeypatch.delenv("SALTOS_PROXY", raising=False)
+
+    assert origen_de(PeticionConProxy("9.9.9.9")) == "10.0.0.1"
+
+
+def test_origen_toma_la_entrada_que_agrego_el_proxy_propio(monkeypatch):
+    from src.api.middleware.limite_peticiones import origen_de
+
+    monkeypatch.setenv("SALTOS_PROXY", "2")
+
+    # cliente, proxy nginx
+    assert origen_de(PeticionConProxy("203.0.113.7, 10.8.0.2")) == "203.0.113.7"
+
+
+def test_origen_ignora_lo_que_el_cliente_antepone_a_la_cabecera(monkeypatch):
+    from src.api.middleware.limite_peticiones import origen_de
+
+    monkeypatch.setenv("SALTOS_PROXY", "2")
+
+    assert (
+        origen_de(PeticionConProxy("1.1.1.1, 203.0.113.7, 10.8.0.2")) == "203.0.113.7"
+    )
+
+
+def test_origen_con_menos_entradas_que_saltos_usa_la_primera(monkeypatch):
+    from src.api.middleware.limite_peticiones import origen_de
+
+    monkeypatch.setenv("SALTOS_PROXY", "2")
+
+    assert origen_de(PeticionConProxy("203.0.113.7")) == "203.0.113.7"
+
+
+def test_origen_sin_cabecera_vuelve_a_la_ip_de_conexion(monkeypatch):
+    from src.api.middleware.limite_peticiones import origen_de
+
+    monkeypatch.setenv("SALTOS_PROXY", "2")
+
+    assert origen_de(PeticionConProxy(None)) == "10.0.0.1"

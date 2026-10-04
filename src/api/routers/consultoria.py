@@ -9,15 +9,19 @@ from src.api.dependencias import (
     obtener_caso_uso_consultar_diagnostico_asignado,
     obtener_caso_uso_listar_diagnosticos_empresa_asignada,
     obtener_caso_uso_listar_empresas_asignadas,
+    obtener_caso_uso_obtener_cuestionario_asignado,
     obtener_caso_uso_registrar_recomendacion, obtener_repositorio_auditoria)
 from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
-from src.api.routers.diagnosticos import (DiagnosticoResponse,
-                                          RecomendacionResponse, _a_response)
+from src.api.routers.diagnosticos import (CuestionarioResponse,
+                                          DiagnosticoResponse,
+                                          RecomendacionResponse, _a_response,
+                                          _cuestionario_a_response)
 from src.api.validadores_comunes import texto_no_vacio, texto_opcional_no_vacio
 from src.aplicacion.casos_uso.gestionar_consultoria import (
     ConsultarDiagnosticoAsignado, ListarDiagnosticosDeEmpresaAsignada,
-    ListarEmpresasAsignadas, RegistrarRecomendacion)
+    ListarEmpresasAsignadas, ObtenerCuestionarioAsignado,
+    RegistrarRecomendacion)
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, DiagnosticoNoEncontrado)
 
@@ -163,6 +167,40 @@ async def consultar_diagnostico_asignado(
     return _a_response(diagnostico, incluir_ocultas=True)
 
 
+@router.get(
+    "/diagnosticos/{diagnostico_id}/cuestionario",
+    response_model=CuestionarioResponse,
+    summary="Cuestionario del diagnóstico de una empresa asignada",
+    description="HU-021: enunciados, opciones y rúbrica de la versión del "
+    "modelo aplicada, para leer las respuestas con su contexto.",
+)
+async def obtener_cuestionario_asignado(
+    diagnostico_id: str,
+    caso_uso: ObtenerCuestionarioAsignado = Depends(
+        obtener_caso_uso_obtener_cuestionario_asignado
+    ),
+    usuario_id: str = Depends(requiere_rol("consultor", "diagnosticos.consultar")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        modelo = await caso_uso.ejecutar(usuario_id, diagnostico_id)
+    except DiagnosticoNoEncontrado:
+        raise HTTPException(status_code=404, detail="Diagnóstico no encontrado")
+    except AccesoNoAutorizado:
+        await registrar_accion(
+            repo_auditoria,
+            usuario_id,
+            "diagnosticos",
+            diagnostico_id,
+            "consultar",
+            valores_nuevos={"acceso": "denegado"},
+        )
+        raise HTTPException(status_code=403, detail=MENSAJE_SIN_ASIGNACION)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _cuestionario_a_response(modelo)
+
+
 @router.post(
     "/diagnosticos/{diagnostico_id}/recomendaciones",
     response_model=RecomendacionResponse,
@@ -221,5 +259,6 @@ async def registrar_recomendacion(
         prioridad=recomendacion.prioridad,
         visible=recomendacion.visible,
         autor_id=recomendacion.autor_id,
+        autor_nombre=recomendacion.autor_nombre,
         creado_en=recomendacion.creado_en,
     )

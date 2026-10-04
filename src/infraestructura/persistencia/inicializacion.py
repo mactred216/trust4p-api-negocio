@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.dominio.catalogo_permisos import (NOMBRES_ROLES, PERMISOS_POR_ROL,
-                                           PERMISOS_SISTEMA)
+                                           PERMISOS_SISTEMA,
+                                           SECTORES_INICIALES)
 
 
 async def sembrar_permisos(db: AsyncIOMotorDatabase) -> None:
@@ -119,6 +120,19 @@ async def crear_indices(db: AsyncIOMotorDatabase) -> list[str]:
     return problemas
 
 
+async def sembrar_sectores(db: AsyncIOMotorDatabase) -> None:
+    """Idempotente: crea los sectores del catalogo inicial que falten sin tocar
+    los que el administrador haya renombrado o desactivado."""
+    ahora = datetime.now(timezone.utc)
+    for codigo, nombre in SECTORES_INICIALES:
+        await db["sectores"].update_one(
+            {"codigo": codigo},
+            {"$setOnInsert": {"nombre": nombre, "activo": True, "creado_en": ahora}},
+            upsert=True,
+        )
+
+
 async def inicializar_base_datos(db: AsyncIOMotorDatabase) -> None:
     await sembrar_permisos(db)
+    await sembrar_sectores(db)
     await crear_indices(db)

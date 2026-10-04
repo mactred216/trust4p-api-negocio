@@ -19,7 +19,17 @@ class RepositorioSolicitud(ABC):
         ...
 
     @abstractmethod
+    async def existe_pendiente_con_nit(self, nit: str) -> bool:
+        """RF-01: tampoco puede haber dos solicitudes pendientes con el mismo NIT."""
+        ...
+
+    @abstractmethod
     async def actualizar(self, solicitud: SolicitudAcceso) -> None: ...
 
     @abstractmethod
     async def listar_pendientes(self) -> list[SolicitudAcceso]: ...
+
+    @abstractmethod
+    async def listar(self, estado: Optional[str] = None) -> list[SolicitudAcceso]:
+        """RF-02: bandeja del administrador, más recientes primero."""
+        ...

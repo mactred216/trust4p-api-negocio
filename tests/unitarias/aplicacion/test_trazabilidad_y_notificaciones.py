@@ -121,6 +121,7 @@ async def test_radicar_notifica_a_cada_administrador_activo():
     repo_solicitud.existe_pendiente_con_correo.return_value = False
     repo_solicitud.guardar.side_effect = lambda s: setattr(s, "id", "s-1") or s
     repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_correo.return_value = None
     repo_usuario.listar_por_rol.return_value = [
         admin("1", "a1@x.com"),
         admin("2", "a2@x.com"),
@@ -148,6 +149,7 @@ async def test_si_el_correo_falla_la_solicitud_igual_se_radica():
     repo_solicitud.existe_pendiente_con_correo.return_value = False
     repo_solicitud.guardar.side_effect = lambda s: setattr(s, "id", "s-1") or s
     repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_correo.return_value = None
     repo_usuario.listar_por_rol.return_value = [admin("1", "a1@x.com")]
     correo = AsyncMock()
     correo.enviar.side_effect = RuntimeError("SMTP caido")

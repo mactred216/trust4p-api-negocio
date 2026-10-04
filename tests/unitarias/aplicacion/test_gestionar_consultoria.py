@@ -267,6 +267,7 @@ async def test_registrar_recomendacion_persiste_con_autor_y_notifica():
 
     assert recomendacion.origen == "consultor"
     assert recomendacion.autor_id == "consultor-1"
+    assert recomendacion.autor_nombre == "Carlos Gómez"
     assert diagnostico.recomendaciones == [recomendacion]
     repo_diagnostico.actualizar.assert_called_once_with(diagnostico)
     servicio_correo.enviar.assert_called_once()
@@ -322,3 +323,55 @@ async def test_registrar_recomendacion_con_dimension_inexistente_falla():
         await caso_uso.ejecutar(
             "consultor-1", "diag-1", titulo="T", contenido="C", dimension_codigo="x"
         )
+
+
+# ---------------- Cuestionario del diagnóstico asignado (HU-021) ----------------
+
+
+def armar_cuestionario_asignado(consultor, diagnostico, modelo):
+    from src.aplicacion.casos_uso.gestionar_consultoria import \
+        ObtenerCuestionarioAsignado
+
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = consultor
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = modelo
+    return ObtenerCuestionarioAsignado(repo_usuario, repo_diagnostico, repo_modelo)
+
+
+@pytest.mark.asyncio
+async def test_cuestionario_asignado_devuelve_el_modelo_de_la_version_aplicada():
+    modelo = object()
+    caso_uso = armar_cuestionario_asignado(
+        crear_consultor(), crear_diagnostico(), modelo
+    )
+
+    assert await caso_uso.ejecutar("consultor-1", "diag-1") is modelo
+
+
+@pytest.mark.asyncio
+async def test_cuestionario_asignado_deniega_empresa_ajena():
+    caso_uso = armar_cuestionario_asignado(
+        crear_consultor(empresas=("otra",)), crear_diagnostico(), object()
+    )
+
+    with pytest.raises(AccesoNoAutorizado):
+        await caso_uso.ejecutar("consultor-1", "diag-1")
+
+
+@pytest.mark.asyncio
+async def test_cuestionario_asignado_diagnostico_inexistente():
+    caso_uso = armar_cuestionario_asignado(crear_consultor(), None, object())
+
+    with pytest.raises(DiagnosticoNoEncontrado):
+        await caso_uso.ejecutar("consultor-1", "diag-x")
+
+
+@pytest.mark.asyncio
+async def test_cuestionario_asignado_version_inexistente():
+    caso_uso = armar_cuestionario_asignado(crear_consultor(), crear_diagnostico(), None)
+
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("consultor-1", "diag-1")

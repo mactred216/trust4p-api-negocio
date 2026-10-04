@@ -21,6 +21,20 @@ async def obtener_usuario_autenticado(
     return usuario_id
 
 
+async def obtener_sesion_actual(
+    request: Request,
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+) -> dict:
+    """Documento de la sesion vigente (rol y permisos efectivos, R-16)."""
+    token = request.cookies.get("sesion")
+    if token is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    sesion = await repo_sesion.obtener_sesion_por_token(token)
+    if sesion is None:
+        raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+    return sesion
+
+
 def requiere_rol(rol_esperado: str, permiso: str | None = None):
     """Fábrica de dependencias: exige un rol específico para el endpoint y,
     si se indica, un permiso (RF-27, HU-028). Los permisos efectivos se

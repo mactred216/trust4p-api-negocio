@@ -2,6 +2,7 @@ from typing import Optional
 
 import bcrypt
 
+from src.aplicacion.servicios.enlaces import enlace_frontend
 from src.dominio.entidades.registro_auditoria import RegistroAuditoria
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
@@ -54,7 +55,8 @@ class SolicitarRestablecimiento:
             asunto="Trust 4P - Código para restablecer tu contraseña",
             cuerpo=(
                 f"Hola {usuario.nombres},\n\n"
-                f"Usa el siguiente código para restablecer tu contraseña: {codigo}\n\n"
+                f"Restablece tu contraseña en este enlace: {enlace_frontend('/restablecer', codigo)}\n\n"
+                f"Si prefieres ingresarlo manualmente, tu código es: {codigo}\n\n"
                 "Si no solicitaste este cambio, puedes ignorar este mensaje."
             ),
         )

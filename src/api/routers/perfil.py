@@ -8,9 +8,11 @@ from src.api.dependencias import (obtener_caso_uso_actualizar_perfil,
                                   obtener_caso_uso_cerrar_sesion,
                                   obtener_caso_uso_consultar_usuario,
                                   obtener_caso_uso_eliminar_datos_personales,
-                                  obtener_repositorio_auditoria)
+                                  obtener_repositorio_auditoria,
+                                  obtener_repositorio_empresa)
 from src.api.middleware.auditoria import registrar_accion, registrar_cambio
-from src.api.middleware.autorizacion import obtener_usuario_autenticado
+from src.api.middleware.autorizacion import (obtener_sesion_actual,
+                                             obtener_usuario_autenticado)
 from src.api.validadores_comunes import (clave_cumple_politica,
                                          telefono_valido,
                                          texto_opcional_no_vacio)
@@ -37,6 +39,8 @@ class PerfilResponse(BaseModel):
     telefono: Optional[str]
     rol_codigo: str
     empresa_id: Optional[str]
+    empresa_nombre: Optional[str] = None
+    permisos: list[str] = []
 
 
 class ActualizarPerfilRequest(BaseModel):
@@ -118,13 +122,19 @@ def _a_response(usuario) -> PerfilResponse:
 @router.get("", response_model=PerfilResponse)
 async def consultar_mi_perfil(
     caso_uso: ConsultarUsuario = Depends(obtener_caso_uso_consultar_usuario),
-    usuario_id: str = Depends(obtener_usuario_autenticado),
+    sesion: dict = Depends(obtener_sesion_actual),
+    repo_empresa=Depends(obtener_repositorio_empresa),
 ):
     try:
-        usuario = await caso_uso.ejecutar(usuario_id)
+        usuario = await caso_uso.ejecutar(sesion["usuario_id"])
     except UsuarioNoEncontradoConsulta:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    return _a_response(usuario)
+    respuesta = _a_response(usuario)
+    respuesta.permisos = list(sesion.get("permisos", []))
+    if usuario.empresa_id:
+        empresa = await repo_empresa.obtener_por_id(usuario.empresa_id)
+        respuesta.empresa_nombre = empresa.nombre if empresa else None
+    return respuesta
 
 
 @router.patch("", response_model=PerfilResponse)

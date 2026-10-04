@@ -7,9 +7,12 @@ from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, DiagnosticoNoEncontrado)
 from src.aplicacion.servicios.notificar import enviar_notificacion
 from src.dominio.entidades.diagnostico import Diagnostico, Recomendacion
+from src.dominio.entidades.modelo_madurez import ModeloMadurez
 from src.dominio.entidades.usuario import Usuario
 from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
 from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
+from src.dominio.puertos.repositorio_modelo_madurez import \
+    RepositorioModeloMadurez
 from src.dominio.puertos.repositorio_notificacion import \
     RepositorioNotificacion
 from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
@@ -189,6 +192,7 @@ class RegistrarRecomendacion:
             contenido=contenido,
             dimension_codigo=dimension_codigo,
             visible=visible,
+            autor_nombre=f"{consultor.nombres} {consultor.apellidos}".strip(),
         )
         await self._diagnosticos.actualizar(diagnostico)
 
@@ -216,3 +220,32 @@ class RegistrarRecomendacion:
                 "Ingrese a la plataforma para consultarla."
             ),
         )
+
+
+class ObtenerCuestionarioAsignado:
+    """HU-021: estructura del cuestionario (enunciados, opciones y rúbrica) de
+    la versión aplicada a un diagnóstico de una empresa asignada, para que el
+    consultor pueda leer las respuestas con su contexto."""
+
+    def __init__(
+        self,
+        repo_usuario: RepositorioUsuario,
+        repo_diagnostico: RepositorioDiagnostico,
+        repo_modelo_madurez: RepositorioModeloMadurez,
+    ):
+        self._usuarios = repo_usuario
+        self._diagnosticos = repo_diagnostico
+        self._modelos = repo_modelo_madurez
+
+    async def ejecutar(self, consultor_id: str, diagnostico_id: str) -> ModeloMadurez:
+        diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
+        if diagnostico is None:
+            raise DiagnosticoNoEncontrado()
+        consultor = await _obtener_consultor(self._usuarios, consultor_id)
+        _exigir_asignacion(consultor, diagnostico.empresa_id)
+        modelo = await self._modelos.obtener_por_version(diagnostico.modelo_version)
+        if modelo is None:
+            raise ValueError(
+                "La versión del modelo aplicada a este diagnóstico ya no existe"
+            )
+        return modelo

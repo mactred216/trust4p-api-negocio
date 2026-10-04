@@ -3,6 +3,7 @@ from typing import Optional
 
 import bcrypt
 
+from src.aplicacion.servicios.enlaces import enlace_frontend
 from src.aplicacion.servicios.notificar import enviar_notificacion
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
@@ -145,7 +146,8 @@ class CrearUsuario:
             contenido=(
                 f"Hola {nombres},\n\n"
                 "El administrador creó tu cuenta en Trust 4P. "
-                f"Usa el siguiente código para definir tu contraseña y completar tu registro: {codigo}"
+                f"Define tu contraseña y completa tu registro en este enlace: {enlace_frontend('/registro', codigo)}\n\n"
+                f"Si prefieres ingresarlo manualmente, tu código es: {codigo}"
             ),
         )
         return usuario

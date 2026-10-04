@@ -122,20 +122,6 @@ def obtener_repositorio_token(
     return RepositorioMongoToken(db)
 
 
-def obtener_caso_uso_resolver_solicitud(
-    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
-    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
-    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
-    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
-    repo_notificacion: RepositorioMongoNotificacion = Depends(
-        obtener_repositorio_notificacion
-    ),
-) -> ResolverSolicitud:
-    return ResolverSolicitud(
-        repo_solicitud, repo_empresa, repo_token, servicio_correo, repo_notificacion
-    )
-
-
 def obtener_caso_uso_completar_registro(
     repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
@@ -724,17 +710,6 @@ def obtener_caso_uso_crear_usuario(
     )
 
 
-def obtener_caso_uso_radicar_solicitud(
-    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
-    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
-    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
-    repo_notificacion: RepositorioMongoNotificacion = Depends(
-        obtener_repositorio_notificacion
-    ),
-) -> RadicarSolicitud:
-    return RadicarSolicitud(repo, repo_usuario, servicio_correo, repo_notificacion)
-
-
 def obtener_caso_uso_restablecer_contrasena(
     repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
     repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
@@ -742,3 +717,98 @@ def obtener_caso_uso_restablecer_contrasena(
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ) -> RestablecerContrasena:
     return RestablecerContrasena(repo_usuario, repo_token, repo_sesion, repo_auditoria)
+
+
+from src.aplicacion.casos_uso.consultar_solicitudes import (  # noqa: E402
+    ConsultarSolicitud, ListarSolicitudes)
+from src.infraestructura.persistencia.repositorio_mongo_sector import \
+    RepositorioMongoSector  # noqa: E402
+
+
+def obtener_repositorio_sector(
+    db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
+) -> RepositorioMongoSector:
+    return RepositorioMongoSector(db)
+
+
+def obtener_caso_uso_radicar_solicitud(
+    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_sector: RepositorioMongoSector = Depends(obtener_repositorio_sector),
+) -> RadicarSolicitud:
+    return RadicarSolicitud(
+        repo,
+        repo_usuario,
+        servicio_correo,
+        repo_notificacion,
+        repo_empresa,
+        repo_sector,
+    )
+
+
+def obtener_caso_uso_resolver_solicitud(
+    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
+    repo_sector: RepositorioMongoSector = Depends(obtener_repositorio_sector),
+) -> ResolverSolicitud:
+    return ResolverSolicitud(
+        repo_solicitud,
+        repo_empresa,
+        repo_token,
+        servicio_correo,
+        repo_notificacion,
+        repo_sector,
+    )
+
+
+def obtener_caso_uso_listar_solicitudes(
+    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+) -> ListarSolicitudes:
+    return ListarSolicitudes(repo)
+
+
+def obtener_caso_uso_consultar_solicitud(
+    repo: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+) -> ConsultarSolicitud:
+    return ConsultarSolicitud(repo)
+
+
+from src.aplicacion.casos_uso.completar_registro import \
+    ConsultarInvitacion  # noqa: E402
+
+
+def obtener_caso_uso_consultar_invitacion(
+    repo_token: RepositorioMongoToken = Depends(obtener_repositorio_token),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_solicitud: RepositorioMongoSolicitud = Depends(obtener_repositorio_solicitud),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+) -> ConsultarInvitacion:
+    return ConsultarInvitacion(repo_token, repo_usuario, repo_solicitud, repo_empresa)
+
+
+from src.aplicacion.casos_uso.gestionar_consultoria import \
+    ObtenerCuestionarioAsignado  # noqa: E402
+
+
+def obtener_caso_uso_obtener_cuestionario_asignado(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_modelo_madurez: RepositorioMongoModeloMadurez = Depends(
+        obtener_repositorio_modelo_madurez
+    ),
+) -> ObtenerCuestionarioAsignado:
+    return ObtenerCuestionarioAsignado(
+        repo_usuario, repo_diagnostico, repo_modelo_madurez
+    )

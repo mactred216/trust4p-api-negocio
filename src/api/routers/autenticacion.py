@@ -1,13 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, EmailStr, field_validator
 
 from src.api.dependencias import (obtener_caso_uso_completar_registro,
+                                  obtener_caso_uso_consultar_invitacion,
                                   obtener_caso_uso_iniciar_sesion)
 from src.api.middleware.limites import (limite_envio_correo, limite_login,
                                         limite_token)
 from src.api.validadores_comunes import clave_cumple_politica, texto_no_vacio
 from src.aplicacion.casos_uso.completar_registro import (AutorizacionRequerida,
                                                          CompletarRegistro,
+                                                         ConsultarInvitacion,
                                                          TokenInvalido)
 from src.aplicacion.casos_uso.iniciar_sesion import (CredencialesInvalidas,
                                                      CuentaBloqueada,
@@ -61,6 +66,15 @@ class CompletarRegistroRequest(BaseModel):
     @classmethod
     def nombre_no_vacio(cls, v: str) -> str:
         return texto_no_vacio(v, minimo=2)
+
+
+class InvitacionResponse(BaseModel):
+    correo: str
+    nombre: str
+    rol_codigo: str
+    empresa_nombre: Optional[str]
+    empresa_nit: Optional[str]
+    expira_en: datetime
 
 
 class UsuarioResponse(BaseModel):
@@ -131,6 +145,27 @@ async def login(
         max_age=1800,  # RF-49: 30 minutos, coincide con DURACION_SESION_MINUTOS
     )
     return LoginResponse(mensaje="Sesión iniciada correctamente")
+
+
+@router.get(
+    "/invitacion",
+    response_model=InvitacionResponse,
+    summary="Datos de una invitación vigente",
+    description="RF-03: la pantalla de registro muestra a quién corresponde la "
+    "invitación (empresa, correo, nombre) antes de definir la contraseña.",
+    dependencies=[Depends(limite_token)],
+)
+async def consultar_invitacion(
+    codigo: str = Query(min_length=10, max_length=200),
+    caso_uso: ConsultarInvitacion = Depends(obtener_caso_uso_consultar_invitacion),
+):
+    try:
+        datos = await caso_uso.ejecutar(codigo)
+    except TokenInvalido:
+        raise HTTPException(
+            status_code=401, detail="Token inválido, expirado o ya utilizado"
+        )
+    return InvitacionResponse(**vars(datos))
 
 
 @router.post(

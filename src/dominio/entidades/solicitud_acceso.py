@@ -16,6 +16,11 @@ class EstadoSolicitud(str, Enum):
 
 @dataclass
 class SolicitudAcceso:
+    """RF-01: datos de la empresa y del solicitante. Los campos de RF-01 que
+    se agregaron después del primer corte (NIT, sector, tamaño, cargo,
+    teléfono, ciudad) son opcionales a nivel de entidad para no romper
+    solicitudes ya radicadas; el endpoint público los exige al radicar."""
+
     id: Optional[str]
     nombre_empresa: str
     correo_solicitante: str
@@ -25,6 +30,15 @@ class SolicitudAcceso:
     motivo_rechazo: Optional[str] = None
     creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     resuelto_en: Optional[datetime] = None
+    nit: Optional[str] = None
+    sector_codigo: Optional[str] = None
+    sector_nombre: Optional[str] = None
+    numero_empleados: Optional[int] = None
+    ciudad: Optional[str] = None
+    cargo: Optional[str] = None
+    telefono: Optional[str] = None
+    acepto_tratamiento_en: Optional[datetime] = None
+    version_politica_aceptada: Optional[str] = None
 
     def aprobar(self, empresa_id: str) -> None:
         """RF-02: solo se puede resolver una vez (evita doble aprobación)."""

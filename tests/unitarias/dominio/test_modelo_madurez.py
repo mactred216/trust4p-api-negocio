@@ -458,6 +458,27 @@ def test_publicar_sin_ejes_perfil_cultural_completos_falla():
         modelo.publicar("admin-1")
 
 
+def test_no_se_puede_quitar_una_dimension_que_usa_un_eje_del_perfil_de_cultura():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_dimension(crear_dimension("innovacion", "1", 1))
+    agregar_ejes_perfil_cultural_completos(modelo)
+
+    with pytest.raises(ValueError, match="perfil de cultura"):
+        modelo.quitar_dimension("innovacion")
+
+    assert [d.codigo for d in modelo.dimensiones] == ["innovacion"]
+
+
+def test_publicar_falla_si_un_eje_usa_una_dimension_que_ya_no_existe():
+    modelo = crear_modelo_publicable()
+    # Un eje queda apuntando a una dimensión que no está en la versión (p. ej. el
+    # borrador se clonó y la dimensión se retiró por otra vía).
+    modelo.ejes_perfil_cultural[0].dimension_codigo = "fantasma"
+
+    with pytest.raises(ValueError, match="no existe en esta versión"):
+        modelo.publicar("admin-1")
+
+
 def test_agregar_eje_perfil_cultural_codigo_invalido_falla():
     modelo = crear_modelo_con_dimension()
     with pytest.raises(ValueError):

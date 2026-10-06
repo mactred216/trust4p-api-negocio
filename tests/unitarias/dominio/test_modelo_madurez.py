@@ -94,6 +94,28 @@ def test_quitar_dimension():
     assert modelo.dimensiones == []
 
 
+def test_no_se_puede_quitar_una_dimension_con_preguntas_activas():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_dimension(crear_dimension())
+    modelo.agregar_pregunta(crear_pregunta())
+
+    with pytest.raises(ValueError, match="preguntas activas"):
+        modelo.quitar_dimension("innovacion")
+
+    assert [d.codigo for d in modelo.dimensiones] == ["innovacion"]
+
+
+def test_se_puede_quitar_una_dimension_cuando_sus_preguntas_estan_desactivadas():
+    modelo = crear_modelo_prueba()
+    modelo.agregar_dimension(crear_dimension())
+    modelo.agregar_pregunta(crear_pregunta())
+    modelo.desactivar_pregunta("p1")
+
+    modelo.quitar_dimension("innovacion")
+
+    assert modelo.dimensiones == []
+
+
 def test_no_se_puede_modificar_una_version_publicada():
     modelo = crear_modelo_prueba(publicado=True)
     with pytest.raises(ValueError):

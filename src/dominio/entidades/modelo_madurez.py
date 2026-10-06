@@ -135,6 +135,15 @@ class ModeloMadurez:
             for p in self.preguntas
             if p.dimension_codigo == codigo and p.activo
         ]
+        ejes = [
+            e.codigo for e in self.ejes_perfil_cultural if e.dimension_codigo == codigo
+        ]
+        if ejes:
+            raise ValueError(
+                f"No se puede quitar la dimensión '{codigo}': el perfil de cultura "
+                f"({', '.join(ejes)}) la usa para determinar su eje. Asocie ese eje a "
+                "otra dimensión primero"
+            )
         if activas:
             raise ValueError(
                 f"No se puede quitar la dimensión '{codigo}': tiene preguntas activas "
@@ -390,6 +399,13 @@ class ModeloMadurez:
             raise ValueError(
                 f"Faltan ejes de perfil cultural por configurar: {sorted(faltantes)}"
             )
+        dimensiones = {d.codigo for d in self.dimensiones}
+        for eje in self.ejes_perfil_cultural:
+            if eje.dimension_codigo not in dimensiones:
+                raise ValueError(
+                    f"El eje de perfil cultural '{eje.codigo}' usa la dimensión "
+                    f"'{eje.dimension_codigo}', que no existe en esta versión"
+                )
 
     def _buscar_eje_perfil_cultural(self, codigo: str) -> EjePerfilCultural:
         for eje in self.ejes_perfil_cultural:

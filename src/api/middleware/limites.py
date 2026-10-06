@@ -33,3 +33,12 @@ limite_solicitudes = limitar_peticiones(
         _entero("LIMITE_SOLICITUDES_VENTANA", "3600"),
     )
 )
+
+# Lectura pública de la estructura del modelo (página de inicio): holgado, pero
+# acotado por origen.
+limite_modelo_publico = limitar_peticiones(
+    LimitadorPeticiones(
+        _entero("LIMITE_MODELO_PUBLICO_MAX", "120"),
+        _entero("LIMITE_MODELO_PUBLICO_VENTANA", "60"),
+    )
+)

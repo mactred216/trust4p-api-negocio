@@ -2,7 +2,8 @@ from decimal import Decimal
 
 import pytest
 
-from src.dominio.catalogo_permisos import SECTORES_INICIALES
+from src.dominio.catalogo_permisos import (SECTORES_INICIALES,
+                                           SECTORES_RETIRADOS)
 from src.dominio.servicios.motor_calculo import calcular_nivel
 from src.infraestructura.persistencia.inicializacion import sembrar_sectores
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
@@ -29,13 +30,15 @@ async def test_no_pisa_un_sector_renombrado_ni_reactiva_uno_desactivado(db):
     await db["sectores"].update_one(
         {"codigo": "fintech"}, {"$set": {"nombre": "Finanzas"}}
     )
-    await db["sectores"].update_one({"codigo": "otro"}, {"$set": {"activo": False}})
+    await db["sectores"].update_one(
+        {"codigo": "otros_servicios"}, {"$set": {"activo": False}}
+    )
 
     await sembrar_sectores(db)
 
     repo = RepositorioMongoSector(db)
     assert (await repo.obtener_por_codigo("fintech")).nombre == "Finanzas"
-    assert await repo.obtener_por_codigo("otro") is None
+    assert await repo.obtener_por_codigo("otros_servicios") is None
 
 
 @pytest.mark.asyncio
@@ -85,3 +88,24 @@ async def test_siembra_el_modelo_4p_una_sola_vez(db):
     vigente = await repo.obtener_vigente()
     assert vigente.version == VERSION_MODELO_4P and vigente.publicado
     assert len(vigente.preguntas) == 16
+
+
+@pytest.mark.asyncio
+async def test_retira_una_sola_vez_los_sectores_que_no_son_servicios(db):
+    # Catalogo anterior: sectores fuera de servicios ya existentes y activos.
+    for codigo in SECTORES_RETIRADOS:
+        await db["sectores"].insert_one(
+            {"codigo": codigo, "nombre": codigo, "activo": True}
+        )
+
+    await sembrar_sectores(db)
+
+    repo = RepositorioMongoSector(db)
+    activos = {s.codigo for s in await repo.listar_activos()}
+    assert activos == {c for c, _ in SECTORES_INICIALES}
+    assert not activos & set(SECTORES_RETIRADOS)
+
+    # Si el administrador reactiva uno, el arranque siguiente no lo vuelve a retirar.
+    await db["sectores"].update_one({"codigo": "alimentos"}, {"$set": {"activo": True}})
+    await sembrar_sectores(db)
+    assert await repo.obtener_por_codigo("alimentos") is not None

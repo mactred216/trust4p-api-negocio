@@ -69,17 +69,26 @@ PERMISOS_POR_ROL: dict[str, list[str]] = {
     ],
 }
 
+# El producto se enfoca en el sector servicios: el catalogo son sus
+# desagregaciones. El administrador puede ampliarlo.
 SECTORES_INICIALES: list[tuple[str, str]] = [
-    # (codigo, nombre) — catalogo inicial; el administrador puede ampliarlo
-    ("logistica", "Cadena de suministro / Logística"),
-    ("biotecnologia", "Biotecnología y Salud"),
-    ("fintech", "Fintech y Servicios financieros"),
-    ("alimentos", "Alimentos y Agroindustria"),
-    ("tecnologia", "Tecnología y Software"),
-    ("manufactura", "Manufactura e Industria"),
+    # (codigo, nombre)
     ("servicios", "Servicios profesionales"),
-    ("otro", "Otro sector"),
+    ("tecnologia", "Tecnología y Software"),
+    ("fintech", "Fintech y Servicios financieros"),
+    ("logistica", "Cadena de suministro / Logística"),
+    ("salud", "Salud y bienestar"),
+    ("educacion", "Educación y formación"),
+    ("turismo", "Turismo, hotelería y restaurantes"),
+    ("comercio", "Comercio y retail"),
+    ("telecom_medios", "Telecomunicaciones y medios"),
+    ("marketing", "Marketing, publicidad y comunicaciones"),
+    ("otros_servicios", "Otros servicios"),
 ]
+
+# Sectores del catalogo anterior que no son servicios: se desactivan una sola
+# vez (las empresas que ya los tienen conservan su dato).
+SECTORES_RETIRADOS: list[str] = ["biotecnologia", "alimentos", "manufactura", "otro"]
 
 NOMBRES_ROLES = {
     "representante": "Representante de empresa",

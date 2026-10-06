@@ -5,7 +5,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.dominio.catalogo_permisos import (NOMBRES_ROLES, PERMISOS_POR_ROL,
                                            PERMISOS_SISTEMA,
-                                           SECTORES_INICIALES)
+                                           SECTORES_INICIALES,
+                                           SECTORES_RETIRADOS)
 
 
 async def sembrar_permisos(db: AsyncIOMotorDatabase) -> None:
@@ -130,6 +131,12 @@ async def sembrar_sectores(db: AsyncIOMotorDatabase) -> None:
             {"$setOnInsert": {"nombre": nombre, "activo": True, "creado_en": ahora}},
             upsert=True,
         )
+    # Una sola vez por sector: si el administrador lo reactiva despues, no se
+    # vuelve a desactivar.
+    await db["sectores"].update_many(
+        {"codigo": {"$in": SECTORES_RETIRADOS}, "retirado_por_catalogo": {"$ne": True}},
+        {"$set": {"activo": False, "retirado_por_catalogo": True}},
+    )
 
 
 async def inicializar_base_datos(db: AsyncIOMotorDatabase) -> None:

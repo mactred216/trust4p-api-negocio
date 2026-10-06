@@ -130,6 +130,16 @@ class ModeloMadurez:
     def quitar_dimension(self, codigo: str) -> None:
         self._validar_editable()
         dimension = self._buscar_dimension(codigo)
+        activas = [
+            p.codigo
+            for p in self.preguntas
+            if p.dimension_codigo == codigo and p.activo
+        ]
+        if activas:
+            raise ValueError(
+                f"No se puede quitar la dimensión '{codigo}': tiene preguntas activas "
+                f"({', '.join(activas)}). Desactívelas o muévalas a otra dimensión primero"
+            )
         self.dimensiones.remove(dimension)
 
     def validar_pesos_dimensiones(self) -> None:

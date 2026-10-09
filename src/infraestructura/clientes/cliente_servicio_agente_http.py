@@ -9,7 +9,11 @@ from src.dominio.puertos.cliente_servicio_agente import (ClienteServicioAgente,
                                                          ServicioAgenteError)
 from src.dominio.servicios.motor_calculo import ResultadoCalculo
 
-TIEMPO_ESPERA_SEGUNDOS = 60.0
+# El agente responde en segundos, pero su servicio escala a cero: la primera
+# evaluación tras un periodo de inactividad paga además el arranque en frío de
+# la instancia. Con 60 s el plazo se agotaba ahí y el diagnóstico quedaba sin
+# interpretación aunque el agente la hubiera generado bien.
+TIEMPO_ESPERA_POR_DEFECTO = "300"
 RUTA_EVALUACIONES = "/v1/evaluaciones"
 
 
@@ -19,11 +23,19 @@ class ClienteServicioAgenteHTTP(ClienteServicioAgente):
     sesión de usuario, ya que quien invoca es este backend, no un
     navegador."""
 
-    def __init__(self, url_base: str | None = None, api_key: str | None = None):
+    def __init__(
+        self,
+        url_base: str | None = None,
+        api_key: str | None = None,
+        tiempo_espera: float | None = None,
+    ):
         self._url_base = (url_base or os.getenv("SERVICIO_AGENTE_URL") or "").rstrip(
             "/"
         )
         self._api_key = api_key or os.getenv("API_KEY_SERVICIOS")
+        self._tiempo_espera = tiempo_espera or float(
+            os.getenv("AGENTE_TIEMPO_ESPERA_SEGUNDOS", TIEMPO_ESPERA_POR_DEFECTO)
+        )
 
     async def evaluar(
         self,
@@ -33,7 +45,7 @@ class ClienteServicioAgenteHTTP(ClienteServicioAgente):
     ) -> RespuestaAgente:
         payload = self._construir_solicitud(diagnostico, modelo, resultado_calculo)
         try:
-            async with httpx.AsyncClient(timeout=TIEMPO_ESPERA_SEGUNDOS) as cliente:
+            async with httpx.AsyncClient(timeout=self._tiempo_espera) as cliente:
                 respuesta = await cliente.post(
                     f"{self._url_base}{RUTA_EVALUACIONES}",
                     json=payload,

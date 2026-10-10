@@ -444,8 +444,9 @@ def _siguiente_version(version_actual: str) -> str:
 
 class CrearNuevaVersion:
     """RF-34 paso 2: la vía prescrita para modificar una versión publicada —
-    clona su configuración completa (dimensiones, niveles, preguntas) en una
-    versión nueva, sin publicar, lista para editarse."""
+    clona su configuración completa (dimensiones, niveles, preguntas con su
+    estado y ejes del perfil de cultura) en una versión nueva, sin publicar, lista para editarse.
+    """
 
     def __init__(self, repo: RepositorioModeloMadurez):
         self._modelos = repo
@@ -497,6 +498,7 @@ class CrearNuevaVersion:
                     en_demo=p.en_demo,
                     orden=p.orden,
                     ayuda=p.ayuda,
+                    activo=p.activo,
                     opciones=[
                         OpcionPregunta(
                             codigo=o.codigo, etiqueta=o.etiqueta, valor=o.valor
@@ -514,6 +516,21 @@ class CrearNuevaVersion:
                     ),
                 )
                 for p in origen.preguntas
+            ],
+            # RF-14: sin los ejes del perfil de cultura el borrador no se
+            # podría publicar.
+            ejes_perfil_cultural=[
+                EjePerfilCultural(
+                    codigo=e.codigo,
+                    nombre=e.nombre,
+                    polo_alto_codigo=e.polo_alto_codigo,
+                    polo_alto_nombre=e.polo_alto_nombre,
+                    polo_bajo_codigo=e.polo_bajo_codigo,
+                    polo_bajo_nombre=e.polo_bajo_nombre,
+                    dimension_codigo=e.dimension_codigo,
+                    umbral=e.umbral,
+                )
+                for e in origen.ejes_perfil_cultural
             ],
         )
         return await self._modelos.guardar(clon)

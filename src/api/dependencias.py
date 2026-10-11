@@ -812,3 +812,26 @@ def obtener_caso_uso_obtener_cuestionario_asignado(
     return ObtenerCuestionarioAsignado(
         repo_usuario, repo_diagnostico, repo_modelo_madurez
     )
+
+
+from src.aplicacion.casos_uso.gestionar_reportes import (  # noqa: E402
+    GenerarInformeDeEmpresa, ListarEmpresasParaReporte)
+
+
+def obtener_caso_uso_listar_empresas_para_reporte(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+) -> ListarEmpresasParaReporte:
+    return ListarEmpresasParaReporte(repo_usuario, repo_empresa, repo_diagnostico)
+
+
+def obtener_caso_uso_generar_informe_de_empresa(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+) -> GenerarInformeDeEmpresa:
+    return GenerarInformeDeEmpresa(repo_usuario, repo_diagnostico)

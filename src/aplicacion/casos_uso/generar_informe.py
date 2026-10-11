@@ -30,7 +30,12 @@ class GenerarInformeDiagnostico:
         if usuario is None or usuario.empresa_id != diagnostico.empresa_id:
             raise AccesoNoAutorizado()
 
-        if diagnostico.estado != "evaluado" or diagnostico.resultado is None:
+        # Cerrado = el consultor concluyó el acompañamiento; el resultado sigue
+        # siendo suyo y debe poder descargarlo.
+        if (
+            diagnostico.estado not in ("evaluado", "cerrado")
+            or diagnostico.resultado is None
+        ):
             raise DiagnosticoSinResultado()
 
         return diagnostico

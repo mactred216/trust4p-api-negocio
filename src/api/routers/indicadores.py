@@ -13,9 +13,10 @@ from src.api.dependencias import (obtener_caso_uso_consultar_indicadores,
                                   obtener_caso_uso_exportar_datos_agregados,
                                   obtener_repositorio_auditoria)
 from src.api.middleware.auditoria import registrar_accion
-from src.api.middleware.autorizacion import requiere_rol
+from src.api.middleware.autorizacion import requiere_algun_rol, requiere_rol
 from src.aplicacion.casos_uso.gestionar_indicadores import (
-    ConsultarIndicadoresAgregados, ExportarDatosAgregados, FiltroInvalido)
+    ConsultarIndicadoresAgregados, EmpresaFueraDeAlcance,
+    ExportarDatosAgregados, FiltroInvalido)
 
 router = APIRouter(prefix="/indicadores", tags=["indicadores"])
 
@@ -40,6 +41,9 @@ class GrupoIndicadorResponse(BaseModel):
 class IndicadoresResponse(BaseModel):
     detalle_disponible: bool
     mensaje: Optional[str] = None
+    # "total" (todas las empresas del alcance) o "empresa" (una sola)
+    ambito: str = "total"
+    empresa_nombre: Optional[str] = None
     total_empresas: Optional[int] = None
     indice_promedio: Optional[Decimal] = None
     por_nivel: list[GrupoIndicadorResponse] = []
@@ -51,26 +55,41 @@ class IndicadoresResponse(BaseModel):
 @router.get(
     "/agregados",
     response_model=IndicadoresResponse,
-    summary="Tablero de indicadores agregados",
-    description="RF-22/HU-023: indicadores por sector, tamaño de empresa "
-    "(micro, pequena, mediana, grande) y nivel de madurez sobre las empresas "
-    "asignadas al consultor. Si el filtro agrupa menos de tres empresas no se "
-    "presenta el detalle (detalle_disponible=false).",
+    summary="Tablero de indicadores",
+    description="RF-22/HU-023: indicadores por sector, tamaño de empresa y nivel "
+    "de madurez. El administrador ve todas las empresas; el consultor solo las "
+    "asignadas. Con `empresa_id` se ve una sola empresa de su alcance. Al "
+    "consultor, si el filtro agrupa menos de tres empresas no se le presenta el "
+    "detalle (detalle_disponible=false).",
 )
 async def consultar_indicadores(
     sector: Optional[str] = Query(default=None, description="Código del sector"),
     tamano: Optional[str] = Query(default=None),
+    empresa_id: Optional[str] = Query(
+        default=None, description="Ver una sola empresa de su alcance"
+    ),
     caso_uso: ConsultarIndicadoresAgregados = Depends(
         obtener_caso_uso_consultar_indicadores
     ),
-    usuario_id: str = Depends(requiere_rol("consultor", "indicadores.consultar")),
+    usuario_id: str = Depends(
+        requiere_algun_rol(
+            {
+                "consultor": "indicadores.consultar",
+                "administrador": "indicadores.consultar",
+            }
+        )
+    ),
 ):
     try:
         indicadores = await caso_uso.ejecutar(
-            usuario_id, sector_codigo=sector, tamano=tamano
+            usuario_id, sector_codigo=sector, tamano=tamano, empresa_id=empresa_id
         )
     except FiltroInvalido as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except EmpresaFueraDeAlcance:
+        raise HTTPException(
+            status_code=403, detail="La empresa no está dentro de su alcance"
+        )
     return IndicadoresResponse(**asdict(indicadores))
 
 

@@ -66,3 +66,37 @@ def requiere_rol(rol_esperado: str, permiso: str | None = None):
         return sesion["usuario_id"]
 
     return verificar
+
+
+def requiere_algun_rol(permiso_por_rol: dict[str, str | None]):
+    """Como requiere_rol, para endpoints que atienden a varios roles con alcance
+    distinto (p. ej. el administrador ve todas las empresas y el consultor solo
+    las suyas). Cada rol permitido puede exigir su propio permiso. Devuelve el
+    id del usuario; el alcance lo decide el caso de uso según su rol."""
+
+    async def verificar(
+        request: Request,
+        repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
+    ) -> str:
+        token = request.cookies.get("sesion")
+        if token is None:
+            raise HTTPException(status_code=401, detail="No autenticado")
+
+        sesion = await repo_sesion.obtener_sesion_por_token(token)
+        if sesion is None:
+            raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+
+        rol = sesion["rol_codigo"]
+        if rol not in permiso_por_rol:
+            raise HTTPException(
+                status_code=403, detail="No autorizado para esta operación"
+            )
+        permiso = permiso_por_rol[rol]
+        if permiso is not None and permiso not in sesion.get("permisos", []):
+            raise HTTPException(
+                status_code=403, detail="No autorizado para esta operación"
+            )
+
+        return sesion["usuario_id"]
+
+    return verificar

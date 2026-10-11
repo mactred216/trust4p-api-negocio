@@ -70,9 +70,9 @@ def test_el_modelo_4p_es_publicable_y_tiene_la_estructura_del_frontend():
 
 @pytest.mark.parametrize(
     "indice,nivel",
-    [(0, 1), (25, 1), (25.5, 2), (50, 2), (62, 3), (75, 3), (75.1, 4), (100, 4)],
+    [(0, 1), (10, 1), (10.5, 2), (25, 3), (50, 5), (55, 6), (75, 8), (90, 9), (95, 10), (100, 10)],
 )
-def test_la_rubrica_n1_n4_cubre_toda_la_escala(indice, nivel):
+def test_la_rubrica_inicial_de_10_niveles_cubre_toda_la_escala(indice, nivel):
     assert (
         calcular_nivel(Decimal(str(indice)), construir_modelo_4p().niveles).nivel
         == nivel

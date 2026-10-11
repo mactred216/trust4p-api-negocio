@@ -2,6 +2,7 @@ import re
 from decimal import Decimal
 from typing import Optional
 
+from src.dominio.catalogo_rubrica import rubrica_estandar
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
                                                   Dimension, EjePerfilCultural,
                                                   ModeloMadurez, Nivel,
@@ -276,6 +277,23 @@ class AgregarNivel:
                 umbral_max=umbral_max,
             )
         )
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class AplicarRubricaEstandar:
+    """Reemplaza la rúbrica del borrador por los 10 niveles estándar repartidos
+    en bandas iguales de su escala; después se pueden ajustar uno a uno."""
+
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(self, modelo_id: str) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.reemplazar_niveles(rubrica_estandar(modelo.escala_min, modelo.escala_max))
         await self._modelos.actualizar(modelo)
         return modelo
 

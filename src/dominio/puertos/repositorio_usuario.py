@@ -27,3 +27,12 @@ class RepositorioUsuario(ABC):
 
     @abstractmethod
     async def listar_por_rol(self, codigo_rol: str) -> list[Usuario]: ...
+
+    @abstractmethod
+    async def listar_por_ids(self, ids: list[str]) -> list[Usuario]:
+        """Los usuarios con esos ids, activos o no (para rotular la bitácora)."""
+
+    @abstractmethod
+    async def buscar(self, texto: str, limite: int = 200) -> list[Usuario]:
+        """Usuarios, activos o no, cuyo nombre, apellido o correo contienen
+        cada palabra del texto (sin distinguir mayúsculas)."""

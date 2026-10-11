@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from bson import ObjectId
@@ -50,6 +51,37 @@ class RepositorioMongoUsuario(RepositorioUsuario):
         cursor = self._coleccion.find({})
         documentos = await cursor.to_list(length=None)
         return [self._a_entidad(doc) for doc in documentos]
+
+    async def listar_por_ids(self, ids: list[str]) -> list[Usuario]:
+        validos = []
+        for id_ in ids:
+            try:
+                validos.append(ObjectId(id_))
+            except (InvalidId, TypeError):
+                continue
+        if not validos:
+            return []
+        cursor = self._coleccion.find({"_id": {"$in": validos}})
+        return [self._a_entidad(doc) for doc in await cursor.to_list(length=None)]
+
+    async def buscar(self, texto: str, limite: int = 200) -> list[Usuario]:
+        palabras = texto.split()
+        if not palabras:
+            return []
+        # Cada palabra debe aparecer en el nombre, el apellido o el correo.
+        filtro = {
+            "$and": [
+                {
+                    "$or": [
+                        {campo: {"$regex": re.escape(palabra), "$options": "i"}}
+                        for campo in ("nombres", "apellidos", "correo")
+                    ]
+                }
+                for palabra in palabras
+            ]
+        }
+        cursor = self._coleccion.find(filtro).limit(limite)
+        return [self._a_entidad(doc) for doc in await cursor.to_list(length=None)]
 
     async def listar_por_rol(self, codigo_rol: str) -> list[Usuario]:
         cursor = self._coleccion.find({"rol.codigo": codigo_rol})

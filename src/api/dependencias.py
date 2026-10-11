@@ -264,8 +264,9 @@ def obtener_repositorio_auditoria(
 
 def obtener_caso_uso_consultar_auditoria(
     repo: RepositorioMongoAuditoria = Depends(obtener_repositorio_auditoria),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
 ) -> ConsultarAuditoria:
-    return ConsultarAuditoria(repo)
+    return ConsultarAuditoria(repo, repo_usuario)
 
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (

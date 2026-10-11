@@ -16,4 +16,5 @@ class RepositorioAuditoria(ABC):
         entidad_id: str = None,
         usuario_id: str = None,
         limite: int = 50,
+        usuario_ids: list[str] | None = None,
     ) -> list[RegistroAuditoria]: ...

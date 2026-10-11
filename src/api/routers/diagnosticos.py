@@ -17,7 +17,8 @@ from src.api.dependencias import (obtener_caso_uso_cerrar_diagnostico,
                                   obtener_caso_uso_iniciar_diagnostico,
                                   obtener_caso_uso_listar_diagnosticos_empresa,
                                   obtener_caso_uso_obtener_cuestionario,
-                                  obtener_repositorio_auditoria)
+                                  obtener_repositorio_auditoria,
+                                  obtener_repositorio_modelo_madurez)
 from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_rol
 from src.api.validadores_comunes import texto_no_vacio
@@ -25,7 +26,7 @@ from src.aplicacion.casos_uso.consultar_evolucion import \
     ConsultarEvolucionDiagnosticos
 from src.aplicacion.casos_uso.evaluar_diagnostico import EvaluarDiagnostico
 from src.aplicacion.casos_uso.generar_informe import (
-    DiagnosticoSinResultado, GenerarInformeDiagnostico)
+    DiagnosticoSinResultado, GenerarInformeDiagnostico, nombres_de_dimensiones)
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, CerrarDiagnostico, CompletarDiagnostico,
     ConsultarDiagnostico, DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado,
@@ -522,6 +523,7 @@ async def descargar_informe(
     caso_uso: GenerarInformeDiagnostico = Depends(obtener_caso_uso_generar_informe),
     usuario_id: str = Depends(requiere_rol("representante", "resultados.consultar")),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
     try:
         diagnostico = await caso_uso.ejecutar(usuario_id, diagnostico_id)
@@ -537,7 +539,9 @@ async def descargar_informe(
             detail="El diagnóstico todavía no tiene un resultado evaluado",
         )
 
-    contenido_pdf = generar_informe_pdf(diagnostico)
+    contenido_pdf = generar_informe_pdf(
+        diagnostico, await nombres_de_dimensiones(repo_modelo, diagnostico)
+    )
 
     await registrar_accion(
         repo_auditoria,

@@ -117,6 +117,7 @@ class EvaluarDiagnostico:
             lienzo_negocio=respuesta_agente.lienzo_negocio,
             sintesis=respuesta_agente.sintesis,
             recomendaciones=respuesta_agente.recomendaciones,
+            nivel_maximo=max((n.nivel for n in modelo.niveles), default=None),
         )
         await self._diagnosticos.actualizar(diagnostico)
         await self._notificar_evaluado(diagnostico)

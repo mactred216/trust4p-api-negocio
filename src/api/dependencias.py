@@ -579,8 +579,9 @@ def obtener_caso_uso_consultar_evolucion(
 
 
 from src.aplicacion.casos_uso.gestionar_consultoria import (
-    ConsultarDiagnosticoAsignado, ListarDiagnosticosDeEmpresaAsignada,
-    ListarEmpresasAsignadas, RegistrarRecomendacion)
+    AvanzarNivel, ConsultarDiagnosticoAsignado, EditarTarea,
+    ListarDiagnosticosDeEmpresaAsignada, ListarEmpresasAsignadas,
+    RegistrarRecomendacion)
 
 
 def obtener_caso_uso_listar_empresas_asignadas(
@@ -620,9 +621,36 @@ def obtener_caso_uso_registrar_recomendacion(
     repo_notificacion: RepositorioMongoNotificacion = Depends(
         obtener_repositorio_notificacion
     ),
+    repo_modelo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
 ) -> RegistrarRecomendacion:
     return RegistrarRecomendacion(
-        repo_usuario, repo_diagnostico, servicio_correo, repo_notificacion
+        repo_usuario, repo_diagnostico, servicio_correo, repo_notificacion, repo_modelo
+    )
+
+
+def obtener_caso_uso_editar_tarea(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_modelo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> EditarTarea:
+    return EditarTarea(repo_usuario, repo_diagnostico, repo_modelo)
+
+
+def obtener_caso_uso_avanzar_nivel(
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_modelo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+    servicio_correo: ClienteCorreoSMTP = Depends(obtener_servicio_correo),
+    repo_notificacion: RepositorioMongoNotificacion = Depends(
+        obtener_repositorio_notificacion
+    ),
+) -> AvanzarNivel:
+    return AvanzarNivel(
+        repo_usuario, repo_diagnostico, repo_modelo, servicio_correo, repo_notificacion
     )
 
 

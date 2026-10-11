@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -33,6 +33,7 @@ from src.aplicacion.casos_uso.gestionar_diagnostico import (
     GuardarRespuesta, IniciarDiagnostico, ListarDiagnosticosDeEmpresa,
     NoHayVersionVigente, ObtenerCuestionario, ObtenerDiagnosticoEnCurso,
     PreguntasPendientes)
+from src.dominio.entidades.diagnostico import NIVELES_PARA_NUEVO_DIAGNOSTICO
 from src.infraestructura.informes.generador_informe_pdf import \
     generar_informe_pdf
 
@@ -80,6 +81,10 @@ class ResultadoDiagnosticoResponse(BaseModel):
 
 
 class RecomendacionResponse(BaseModel):
+    """Una recomendación es una tarea del plan de mejora: tiene estado, fecha
+    límite y el nivel de madurez que ayuda a alcanzar."""
+
+    id: str
     origen: str
     dimension_codigo: Optional[str]
     titulo: str
@@ -89,6 +94,17 @@ class RecomendacionResponse(BaseModel):
     autor_id: Optional[str]
     autor_nombre: Optional[str] = None
     creado_en: datetime
+    estado: str = "pendiente"
+    fecha_limite: Optional[date] = None
+    nivel_objetivo: Optional[int] = None
+    actualizado_en: Optional[datetime] = None
+    completada_en: Optional[datetime] = None
+
+
+class AvanceNivelResponse(BaseModel):
+    nivel: int
+    alcanzado_en: datetime
+    consultor_nombre: Optional[str] = None
 
 
 class DiagnosticoResponse(BaseModel):
@@ -108,6 +124,11 @@ class DiagnosticoResponse(BaseModel):
     completado_en: Optional[datetime]
     evaluado_en: Optional[datetime]
     cerrado_en: Optional[datetime]
+    # Plan de mejora: nivel confirmado por el consultor y avances registrados.
+    nivel_alcanzado: Optional[int] = None
+    avances_de_nivel: list[AvanceNivelResponse] = []
+    nuevo_diagnostico_recomendado: bool = False
+    niveles_para_nuevo_diagnostico: int = NIVELES_PARA_NUEVO_DIAGNOSTICO
 
 
 class GuardarRespuestaRequest(BaseModel):
@@ -331,17 +352,7 @@ def _a_response(diagnostico, incluir_ocultas: bool = False) -> DiagnosticoRespon
         ],
         resultado=_resultado_a_response(diagnostico.resultado),
         recomendaciones=[
-            RecomendacionResponse(
-                origen=r.origen,
-                dimension_codigo=r.dimension_codigo,
-                titulo=r.titulo,
-                contenido=r.contenido,
-                prioridad=r.prioridad,
-                visible=r.visible,
-                autor_id=r.autor_id,
-                autor_nombre=r.autor_nombre,
-                creado_en=r.creado_en,
-            )
+            _recomendacion_a_response(r, diagnostico)
             for r in diagnostico.recomendaciones
             if incluir_ocultas or r.visible
         ],
@@ -350,6 +361,42 @@ def _a_response(diagnostico, incluir_ocultas: bool = False) -> DiagnosticoRespon
         completado_en=diagnostico.completado_en,
         evaluado_en=diagnostico.evaluado_en,
         cerrado_en=diagnostico.cerrado_en,
+        nivel_alcanzado=diagnostico.nivel_actual(),
+        avances_de_nivel=[
+            AvanceNivelResponse(
+                nivel=a.nivel,
+                alcanzado_en=a.alcanzado_en,
+                consultor_nombre=a.consultor_nombre,
+            )
+            for a in diagnostico.avances_de_nivel
+        ],
+        nuevo_diagnostico_recomendado=diagnostico.nuevo_diagnostico_recomendado(),
+    )
+
+
+def _recomendacion_a_response(recomendacion, diagnostico=None) -> RecomendacionResponse:
+    """`diagnostico` permite resolver el nivel objetivo de las tareas que no lo
+    guardaron (las anteriores al plan de mejora)."""
+    return RecomendacionResponse(
+        id=recomendacion.id,
+        origen=recomendacion.origen,
+        dimension_codigo=recomendacion.dimension_codigo,
+        titulo=recomendacion.titulo,
+        contenido=recomendacion.contenido,
+        prioridad=recomendacion.prioridad,
+        visible=recomendacion.visible,
+        autor_id=recomendacion.autor_id,
+        autor_nombre=recomendacion.autor_nombre,
+        creado_en=recomendacion.creado_en,
+        estado=recomendacion.estado,
+        fecha_limite=recomendacion.fecha_limite,
+        nivel_objetivo=(
+            diagnostico.nivel_objetivo_de(recomendacion)
+            if diagnostico is not None
+            else recomendacion.nivel_objetivo
+        ),
+        actualizado_en=recomendacion.actualizado_en,
+        completada_en=recomendacion.completada_en,
     )
 
 

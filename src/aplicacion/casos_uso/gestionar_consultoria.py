@@ -1,12 +1,13 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, DiagnosticoNoEncontrado)
 from src.aplicacion.servicios.notificar import enviar_notificacion
-from src.dominio.entidades.diagnostico import Diagnostico, Recomendacion
+from src.dominio.entidades.diagnostico import (AvanceNivel, Diagnostico,
+                                               Recomendacion)
 from src.dominio.entidades.modelo_madurez import ModeloMadurez
 from src.dominio.entidades.usuario import Usuario
 from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
@@ -44,6 +45,18 @@ async def _obtener_consultor(
     if consultor is None:
         raise AccesoNoAutorizado()
     return consultor
+
+
+async def _nivel_maximo(
+    repo_modelo: Optional[RepositorioModeloMadurez], diagnostico: Diagnostico
+) -> Optional[int]:
+    """Nivel más alto de la rúbrica con que se evaluó el diagnóstico."""
+    if repo_modelo is None:
+        return None
+    modelo = await repo_modelo.obtener_por_version(diagnostico.modelo_version)
+    if modelo is None or not modelo.niveles:
+        return None
+    return max(n.nivel for n in modelo.niveles)
 
 
 def _exigir_asignacion(consultor: Usuario, empresa_id: str) -> None:
@@ -165,11 +178,13 @@ class RegistrarRecomendacion:
         repo_diagnostico: RepositorioDiagnostico,
         servicio_correo: ServicioCorreo,
         repo_notificacion: RepositorioNotificacion,
+        repo_modelo: Optional[RepositorioModeloMadurez] = None,
     ):
         self._usuarios = repo_usuario
         self._diagnosticos = repo_diagnostico
         self._correo = servicio_correo
         self._notificaciones = repo_notificacion
+        self._modelos = repo_modelo
 
     async def ejecutar(
         self,
@@ -179,6 +194,8 @@ class RegistrarRecomendacion:
         contenido: str,
         dimension_codigo: Optional[str] = None,
         visible: bool = True,
+        fecha_limite: Optional[date] = None,
+        nivel_objetivo: Optional[int] = None,
     ) -> Recomendacion:
         diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
         if diagnostico is None:
@@ -193,6 +210,9 @@ class RegistrarRecomendacion:
             dimension_codigo=dimension_codigo,
             visible=visible,
             autor_nombre=f"{consultor.nombres} {consultor.apellidos}".strip(),
+            fecha_limite=fecha_limite,
+            nivel_objetivo=nivel_objetivo,
+            nivel_maximo=await _nivel_maximo(self._modelos, diagnostico),
         )
         await self._diagnosticos.actualizar(diagnostico)
 
@@ -218,6 +238,140 @@ class RegistrarRecomendacion:
                 f"{consultor.nombres} {consultor.apellidos} registró la recomendación "
                 f"'{titulo}' sobre el diagnóstico N.° {diagnostico.consecutivo}. "
                 "Ingrese a la plataforma para consultarla."
+            ),
+        )
+
+
+class TareaNoEncontrada(Exception):
+    pass
+
+
+def resumen_de_tarea(diagnostico: Diagnostico, recomendacion: Recomendacion) -> dict:
+    """Los campos de una tarea que se comparan en la bitácora."""
+    return {
+        "titulo": recomendacion.titulo,
+        "contenido": recomendacion.contenido,
+        "estado": recomendacion.estado,
+        "fecha_limite": (
+            recomendacion.fecha_limite.isoformat() if recomendacion.fecha_limite else None
+        ),
+        "nivel_objetivo": diagnostico.nivel_objetivo_de(recomendacion),
+        "visible": recomendacion.visible,
+    }
+
+
+@dataclass
+class CambioDeTarea:
+    recomendacion: Recomendacion
+    diagnostico: Diagnostico
+    antes: dict
+    despues: dict
+
+
+class EditarTarea:
+    """El consultor asignado gestiona las tareas del plan de mejora de la empresa:
+    cambia su estado, su fecha límite, su nivel objetivo, su texto o si se comparte
+    con la empresa."""
+
+    def __init__(
+        self,
+        repo_usuario: RepositorioUsuario,
+        repo_diagnostico: RepositorioDiagnostico,
+        repo_modelo: Optional[RepositorioModeloMadurez] = None,
+    ):
+        self._usuarios = repo_usuario
+        self._diagnosticos = repo_diagnostico
+        self._modelos = repo_modelo
+
+    async def ejecutar(
+        self, consultor_id: str, diagnostico_id: str, tarea_id: str, cambios: dict
+    ) -> CambioDeTarea:
+        diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
+        if diagnostico is None:
+            raise DiagnosticoNoEncontrado()
+        consultor = await _obtener_consultor(self._usuarios, consultor_id)
+        _exigir_asignacion(consultor, diagnostico.empresa_id)
+        recomendacion = diagnostico.recomendacion_por_id(tarea_id)
+        if recomendacion is None:
+            raise TareaNoEncontrada()
+
+        antes = resumen_de_tarea(diagnostico, recomendacion)
+        diagnostico.editar_recomendacion(
+            recomendacion, cambios, nivel_maximo=await _nivel_maximo(self._modelos, diagnostico)
+        )
+        await self._diagnosticos.actualizar(diagnostico)
+        return CambioDeTarea(
+            recomendacion=recomendacion,
+            diagnostico=diagnostico,
+            antes=antes,
+            despues=resumen_de_tarea(diagnostico, recomendacion),
+        )
+
+
+class AvanzarNivel:
+    """El consultor confirma que la empresa alcanzó el siguiente nivel de madurez
+    al completar las tareas que lo llevaban hasta él. Avisa al representante."""
+
+    def __init__(
+        self,
+        repo_usuario: RepositorioUsuario,
+        repo_diagnostico: RepositorioDiagnostico,
+        repo_modelo: RepositorioModeloMadurez,
+        servicio_correo: ServicioCorreo,
+        repo_notificacion: RepositorioNotificacion,
+    ):
+        self._usuarios = repo_usuario
+        self._diagnosticos = repo_diagnostico
+        self._modelos = repo_modelo
+        self._correo = servicio_correo
+        self._notificaciones = repo_notificacion
+
+    async def ejecutar(
+        self, consultor_id: str, diagnostico_id: str
+    ) -> tuple[Diagnostico, AvanceNivel, int]:
+        """Devuelve el diagnóstico, el avance y el nivel de partida."""
+        diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
+        if diagnostico is None:
+            raise DiagnosticoNoEncontrado()
+        consultor = await _obtener_consultor(self._usuarios, consultor_id)
+        _exigir_asignacion(consultor, diagnostico.empresa_id)
+        modelo = await self._modelos.obtener_por_version(diagnostico.modelo_version)
+        nivel_maximo = max((n.nivel for n in modelo.niveles), default=None) if modelo else None
+
+        nivel_anterior = diagnostico.nivel_actual()
+        avance = diagnostico.avanzar_nivel(
+            consultor_id,
+            f"{consultor.nombres} {consultor.apellidos}".strip(),
+            nivel_maximo,
+        )
+        await self._diagnosticos.actualizar(diagnostico)
+        await self._notificar_representante(diagnostico, avance, modelo)
+        return diagnostico, avance, nivel_anterior
+
+    async def _notificar_representante(
+        self, diagnostico: Diagnostico, avance: AvanceNivel, modelo: Optional[ModeloMadurez]
+    ) -> None:
+        representante = await self._usuarios.obtener_por_id(diagnostico.usuario_id)
+        if representante is None:
+            return
+        nombre = next((n.nombre for n in (modelo.niveles if modelo else []) if n.nivel == avance.nivel), None)
+        nivel = f"{avance.nivel} ({nombre})" if nombre else str(avance.nivel)
+        recomendacion = (
+            " Se recomienda realizar un nuevo diagnóstico para medir el progreso."
+            if diagnostico.nuevo_diagnostico_recomendado()
+            else " Revise en su plan de mejora las tareas para el siguiente nivel."
+        )
+        await enviar_notificacion(
+            self._correo,
+            self._notificaciones,
+            usuario_id=representante.id,
+            correo_destino=representante.correo,
+            tipo="nivel_alcanzado",
+            asunto="Trust 4P - Su empresa alcanzó un nuevo nivel de madurez",
+            contenido=(
+                f"Hola {representante.nombres},\n\n"
+                f"{avance.consultor_nombre or 'Su consultor'} confirmó que {diagnostico.empresa_nombre} "
+                f"alcanzó el nivel {nivel} de madurez de innovación.{recomendacion}"
             ),
         )
 

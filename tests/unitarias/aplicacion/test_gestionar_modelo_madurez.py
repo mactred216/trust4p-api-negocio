@@ -466,6 +466,67 @@ async def test_crear_nueva_version_clona_configuracion():
 
 
 @pytest.mark.asyncio
+async def test_crear_nueva_version_copia_los_ejes_del_perfil_de_cultura():
+    origen = crear_modelo_publicable()
+    origen.publicar("admin-1")
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = origen
+    repo.obtener_por_version.return_value = None
+    repo.guardar.side_effect = lambda m: m
+
+    clon = await CrearNuevaVersion(repo).ejecutar("modelo-1")
+
+    assert {e.codigo for e in clon.ejes_perfil_cultural} == EJES_PERFIL_CULTURAL_CODIGOS
+    assert all(e.dimension_codigo == "innovacion" for e in clon.ejes_perfil_cultural)
+    # independiente del origen: reasignar un eje en el borrador no lo toca
+    clon.ejes_perfil_cultural[0].dimension_codigo = "otra"
+    assert origen.ejes_perfil_cultural[0].dimension_codigo == "innovacion"
+
+
+@pytest.mark.asyncio
+async def test_el_borrador_clonado_se_puede_publicar_sin_reconstruir_nada():
+    origen = crear_modelo_publicable()
+    origen.publicar("admin-1")
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = origen
+    repo.obtener_por_version.return_value = None
+    repo.guardar.side_effect = lambda m: m
+
+    clon = await CrearNuevaVersion(repo).ejecutar("modelo-1")
+    clon.publicar("admin-1")
+
+    assert clon.publicado is True
+
+
+@pytest.mark.asyncio
+async def test_crear_nueva_version_conserva_las_preguntas_desactivadas():
+    origen = crear_modelo_publicable()
+    origen.agregar_pregunta(
+        Pregunta(
+            codigo="p2",
+            dimension_codigo="innovacion",
+            enunciado="Otra",
+            tipo="escala",
+            obligatoria=True,
+            peso=Decimal("0.5"),
+            en_demo=False,
+            orden=2,
+        )
+    )
+    origen.desactivar_pregunta("p2")
+    origen.publicado = True
+    repo = AsyncMock()
+    repo.obtener_por_id.return_value = origen
+    repo.obtener_por_version.return_value = None
+    repo.guardar.side_effect = lambda m: m
+
+    clon = await CrearNuevaVersion(repo).ejecutar("modelo-1")
+
+    estados = {p.codigo: p.activo for p in clon.preguntas}
+    assert estados == {"p1": True, "p2": False}
+
+
+@pytest.mark.asyncio
 async def test_crear_nueva_version_evita_colision_de_version():
     origen = crear_modelo_publicable()
     origen.publicar("admin-1")

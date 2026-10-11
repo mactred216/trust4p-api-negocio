@@ -7,9 +7,9 @@ from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
 from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
 from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
 from src.dominio.servicios.indicadores_agregados import (
-    TAMANOS, FilaExportacion, IndicadoresAgregados, MuestraEmpresa,
-    calcular_indicadores, clasificar_tamano, filas_para_exportacion,
-    filtrar_muestras)
+    MINIMO_EMPRESAS, TAMANOS, FilaExportacion, IndicadoresAgregados,
+    MuestraEmpresa, calcular_indicadores, calcular_indicadores_empresa,
+    clasificar_tamano, filas_para_exportacion, filtrar_muestras)
 
 ESTADOS_CON_RESULTADO = ("evaluado", "fallido", "cerrado")
 
@@ -67,15 +67,26 @@ async def _recolectar_muestras(
                 puntajes_dimension={
                     d.codigo: d.puntaje for d in ultimo.resultado.dimensiones
                 },
+                empresa_id=empresa_id,
+                empresa_nombre=empresa.nombre,
             )
         )
     return muestras
 
 
+class EmpresaFueraDeAlcance(Exception):
+    """La empresa pedida no existe o no está dentro del alcance de quien consulta."""
+
+
 class ConsultarIndicadoresAgregados:
-    """RF-22 (HU-023): tablero de indicadores agregados sobre las empresas
-    con asignación vigente del consultor, filtrable por sector y tamaño. Si
-    el filtro agrupa menos de tres empresas no se presenta el detalle."""
+    """RF-22 (HU-023): tablero de indicadores. Alcance según el rol: el
+    consultor ve las empresas con asignación vigente y el administrador todas
+    las activas. Se filtra por sector y tamaño, o se ve una sola empresa.
+
+    Confidencialidad (Gherkin HU-023 CA-01): al consultor, si el filtro agrupa
+    menos de tres empresas no se le presenta el detalle agregado. El
+    administrador ya accede al detalle de cada empresa, y la vista de una
+    empresa son sus propios resultados: ahí no aplica."""
 
     def __init__(
         self,
@@ -89,18 +100,41 @@ class ConsultarIndicadoresAgregados:
 
     async def ejecutar(
         self,
-        consultor_id: str,
+        usuario_id: str,
         sector_codigo: Optional[str] = None,
         tamano: Optional[str] = None,
+        empresa_id: Optional[str] = None,
     ) -> IndicadoresAgregados:
         _validar_tamano(tamano)
-        consultor = await _obtener_consultor(self._usuarios, consultor_id)
+        usuario = await _obtener_consultor(self._usuarios, usuario_id)
+        es_administrador = usuario.rol.codigo == "administrador"
+
+        if es_administrador:
+            alcance = [e.id for e in await self._empresas.listar_activas()]
+        else:
+            alcance = usuario.empresas_asignadas_vigentes()
+
+        if empresa_id is not None:
+            if empresa_id not in alcance:
+                raise EmpresaFueraDeAlcance()
+            muestras = await _recolectar_muestras(
+                self._empresas, self._diagnosticos, [empresa_id]
+            )
+            if not muestras:
+                return IndicadoresAgregados(
+                    detalle_disponible=False,
+                    ambito="empresa",
+                    mensaje="La empresa aún no tiene un diagnóstico evaluado",
+                )
+            return calcular_indicadores_empresa(muestras[0])
+
         muestras = await _recolectar_muestras(
-            self._empresas,
-            self._diagnosticos,
-            consultor.empresas_asignadas_vigentes(),
+            self._empresas, self._diagnosticos, alcance
         )
-        return calcular_indicadores(filtrar_muestras(muestras, sector_codigo, tamano))
+        minimo = 1 if es_administrador else MINIMO_EMPRESAS
+        return calcular_indicadores(
+            filtrar_muestras(muestras, sector_codigo, tamano), minimo
+        )
 
 
 class ExportarDatosAgregados:

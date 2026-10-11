@@ -42,6 +42,8 @@ class MuestraEmpresa:
     nivel: int
     indice_global: Decimal
     puntajes_dimension: dict[str, Decimal] = field(default_factory=dict)
+    empresa_id: Optional[str] = None
+    empresa_nombre: Optional[str] = None
 
 
 @dataclass
@@ -57,6 +59,9 @@ class GrupoIndicador:
 class IndicadoresAgregados:
     detalle_disponible: bool
     mensaje: Optional[str] = None
+    # "total" (todas las empresas del alcance) o "empresa" (una sola).
+    ambito: str = "total"
+    empresa_nombre: Optional[str] = None
     total_empresas: Optional[int] = None
     indice_promedio: Optional[Decimal] = None
     por_nivel: list[GrupoIndicador] = field(default_factory=list)
@@ -74,7 +79,7 @@ def _promedio(valores: list[Decimal]) -> Decimal:
 
 
 def _agrupar(
-    muestras: list[MuestraEmpresa], clave_de, etiqueta_de
+    muestras: list[MuestraEmpresa], clave_de, etiqueta_de, minimo: int = MINIMO_EMPRESAS
 ) -> list[GrupoIndicador]:
     grupos: dict[str, list[MuestraEmpresa]] = {}
     for muestra in muestras:
@@ -85,7 +90,7 @@ def _agrupar(
     total = len(muestras)
     resultado = []
     for clave, miembros in grupos.items():
-        if len(miembros) < MINIMO_EMPRESAS:
+        if len(miembros) < minimo:
             continue
         resultado.append(
             GrupoIndicador(
@@ -112,10 +117,20 @@ def filtrar_muestras(
     ]
 
 
-def calcular_indicadores(muestras: list[MuestraEmpresa]) -> IndicadoresAgregados:
-    if len(muestras) < MINIMO_EMPRESAS:
+def calcular_indicadores(
+    muestras: list[MuestraEmpresa], minimo: int = MINIMO_EMPRESAS
+) -> IndicadoresAgregados:
+    """`minimo` es el tope de confidencialidad: el consultor lo aplica (HU-023
+    CA-01). El administrador ya accede al detalle de cada empresa, por lo que
+    para él no hay nada que proteger con la supresión (minimo=1)."""
+    if not muestras or len(muestras) < minimo:
         return IndicadoresAgregados(
-            detalle_disponible=False, mensaje=MENSAJE_CONFIDENCIALIDAD
+            detalle_disponible=False,
+            mensaje=(
+                MENSAJE_CONFIDENCIALIDAD
+                if muestras
+                else "No hay empresas con un diagnóstico evaluado para este filtro"
+            ),
         )
 
     por_dimension: dict[str, list[Decimal]] = {}
@@ -127,15 +142,65 @@ def calcular_indicadores(muestras: list[MuestraEmpresa]) -> IndicadoresAgregados
         detalle_disponible=True,
         total_empresas=len(muestras),
         indice_promedio=_promedio([m.indice_global for m in muestras]),
-        por_nivel=_agrupar(muestras, lambda m: m.nivel, lambda m: f"Nivel {m.nivel}"),
-        por_sector=_agrupar(
-            muestras, lambda m: m.sector_codigo, lambda m: m.sector_nombre
+        por_nivel=_agrupar(
+            muestras, lambda m: m.nivel, lambda m: f"Nivel {m.nivel}", minimo
         ),
-        por_tamano=_agrupar(muestras, lambda m: m.tamano, lambda m: m.tamano),
+        por_sector=_agrupar(
+            muestras, lambda m: m.sector_codigo, lambda m: m.sector_nombre, minimo
+        ),
+        por_tamano=_agrupar(muestras, lambda m: m.tamano, lambda m: m.tamano, minimo),
         promedio_por_dimension={
             codigo: _promedio(valores)
             for codigo, valores in sorted(por_dimension.items())
-            if len(valores) >= MINIMO_EMPRESAS
+            if len(valores) >= minimo
+        },
+    )
+
+
+def calcular_indicadores_empresa(muestra: MuestraEmpresa) -> IndicadoresAgregados:
+    """Tablero de UNA empresa: son sus propios resultados (que su consultor o el
+    administrador ya pueden consultar en el detalle del diagnóstico), no un
+    agregado que pueda ocultar a nadie: no aplica el tope de confidencialidad."""
+    return IndicadoresAgregados(
+        detalle_disponible=True,
+        ambito="empresa",
+        empresa_nombre=muestra.empresa_nombre,
+        total_empresas=1,
+        indice_promedio=_redondear(muestra.indice_global),
+        por_nivel=[
+            GrupoIndicador(
+                clave=str(muestra.nivel),
+                etiqueta=f"Nivel {muestra.nivel}",
+                empresas=1,
+                porcentaje=Decimal("100.00"),
+                indice_promedio=_redondear(muestra.indice_global),
+            )
+        ],
+        por_sector=[
+            GrupoIndicador(
+                clave=muestra.sector_codigo,
+                etiqueta=muestra.sector_nombre,
+                empresas=1,
+                porcentaje=Decimal("100.00"),
+                indice_promedio=_redondear(muestra.indice_global),
+            )
+        ],
+        por_tamano=(
+            [
+                GrupoIndicador(
+                    clave=muestra.tamano,
+                    etiqueta=muestra.tamano,
+                    empresas=1,
+                    porcentaje=Decimal("100.00"),
+                    indice_promedio=_redondear(muestra.indice_global),
+                )
+            ]
+            if muestra.tamano
+            else []
+        ),
+        promedio_por_dimension={
+            codigo: _redondear(puntaje)
+            for codigo, puntaje in sorted(muestra.puntajes_dimension.items())
         },
     )
 

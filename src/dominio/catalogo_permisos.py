@@ -27,6 +27,11 @@ PERMISOS_SISTEMA: list[tuple[str, str, str]] = [
         "consultoria",
         "Consultar el tablero de indicadores agregados",
     ),
+    (
+        "informes.descargar",
+        "consultoria",
+        "Consultar y descargar el informe de las empresas dentro de su alcance",
+    ),
     ("empresas.gestionar", "empresas", "Gestionar empresas"),
     (
         "usuarios.gestionar",
@@ -56,6 +61,7 @@ PERMISOS_POR_ROL: dict[str, list[str]] = {
         "recomendaciones.registrar",
         "diagnosticos.cerrar",
         "indicadores.consultar",
+        "informes.descargar",
     ],
     "administrador": [
         "empresas.gestionar",
@@ -64,6 +70,8 @@ PERMISOS_POR_ROL: dict[str, list[str]] = {
         "solicitudes.gestionar",
         "auditoria.consultar",
         "datos.exportar",
+        "indicadores.consultar",
+        "informes.descargar",
         "modelo.gestionar",
         "modelo.simular",
     ],

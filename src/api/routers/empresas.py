@@ -21,7 +21,8 @@ from src.aplicacion.casos_uso.gestionar_empresas import (ConsultarEmpresa,
                                                          EmpresaNoEncontrada,
                                                          ListarEmpresas,
                                                          NitYaRegistrado,
-                                                         ReactivarEmpresa)
+                                                         ReactivarEmpresa,
+                                                         SectorNoValido)
 from src.dominio.entidades.empresa import Sector
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
@@ -75,6 +76,7 @@ class CrearEmpresaRequest(BaseModel):
 class EditarEmpresaRequest(BaseModel):
     nombre: Optional[str] = None
     nit: Optional[str] = None
+    sector_codigo: Optional[str] = None
     numero_empleados: Optional[int] = None
     ciudad: Optional[str] = None
 
@@ -82,6 +84,11 @@ class EditarEmpresaRequest(BaseModel):
     @classmethod
     def si_viene_no_vacio(cls, v: Optional[str]) -> Optional[str]:
         return texto_opcional_no_vacio(v)
+
+    @field_validator("sector_codigo")
+    @classmethod
+    def sector_si_viene_valido(cls, v: Optional[str]) -> Optional[str]:
+        return texto_opcional_no_vacio(v, maximo=50)
 
     @field_validator("nit")
     @classmethod
@@ -104,6 +111,8 @@ def _resumen_auditoria(empresa) -> dict:
     return {
         "nombre": empresa.nombre,
         "nit": empresa.nit,
+        "sector": empresa.sector.codigo,
+        "sector_nombre": empresa.sector.nombre,
         "numero_empleados": empresa.numero_empleados,
         "ciudad": empresa.ciudad,
         "activo": empresa.activo,
@@ -223,11 +232,16 @@ async def editar_empresa(
             nit=datos.nit,
             numero_empleados=datos.numero_empleados,
             ciudad=datos.ciudad,
+            sector_codigo=datos.sector_codigo,
         )
     except EmpresaNoEncontrada:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     except NitYaRegistrado:
         raise HTTPException(status_code=409, detail="Ya existe una empresa con ese NIT")
+    except SectorNoValido:
+        raise HTTPException(
+            status_code=400, detail="El sector indicado no existe o está inactivo"
+        )
 
     await registrar_cambio(
         repo_auditoria,

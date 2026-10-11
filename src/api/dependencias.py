@@ -98,12 +98,6 @@ def obtener_caso_uso_consultar_empresa(
     return ConsultarEmpresa(repo)
 
 
-def obtener_caso_uso_editar_empresa(
-    repo: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
-) -> EditarEmpresa:
-    return EditarEmpresa(repo)
-
-
 def obtener_caso_uso_desactivar_empresa(
     repo: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
 ) -> DesactivarEmpresa:
@@ -751,6 +745,13 @@ def obtener_repositorio_sector(
     db: AsyncIOMotorDatabase = Depends(obtener_base_datos),
 ) -> RepositorioMongoSector:
     return RepositorioMongoSector(db)
+
+
+def obtener_caso_uso_editar_empresa(
+    repo: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_sector: RepositorioMongoSector = Depends(obtener_repositorio_sector),
+) -> EditarEmpresa:
+    return EditarEmpresa(repo, repo_sector)
 
 
 def obtener_caso_uso_radicar_solicitud(

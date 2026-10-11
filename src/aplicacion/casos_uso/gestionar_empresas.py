@@ -2,6 +2,7 @@ from typing import Optional
 
 from src.dominio.entidades.empresa import Empresa, Sector
 from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
+from src.dominio.puertos.repositorio_sector import RepositorioSector
 
 
 class EmpresaNoEncontrada(Exception):
@@ -10,6 +11,10 @@ class EmpresaNoEncontrada(Exception):
 
 class NitYaRegistrado(Exception):
     pass
+
+
+class SectorNoValido(Exception):
+    """El sector indicado no existe en el catálogo o está inactivo."""
 
 
 class CrearEmpresa:
@@ -81,8 +86,18 @@ class ConsultarEmpresa:
 
 
 class EditarEmpresa:
-    def __init__(self, repo: RepositorioEmpresa):
+    """Nombre, NIT, sector, número de empleados y ciudad. El NIT no puede estar
+    en otra empresa. El sector se resuelve contra el catálogo: no se acepta un
+    sector que no exista o esté inactivo (si la empresa conserva el suyo, no se
+    revalida)."""
+
+    def __init__(
+        self,
+        repo: RepositorioEmpresa,
+        repo_sector: Optional[RepositorioSector] = None,
+    ):
         self._empresas = repo
+        self._sectores = repo_sector
 
     async def ejecutar(
         self,
@@ -91,18 +106,30 @@ class EditarEmpresa:
         nit: Optional[str] = None,
         numero_empleados: Optional[int] = None,
         ciudad: Optional[str] = None,
+        sector_codigo: Optional[str] = None,
     ) -> Empresa:
         empresa = await self._empresas.obtener_por_id(empresa_id)
         if empresa is None:
             raise EmpresaNoEncontrada()
 
-        if nombre is not None:
-            empresa.nombre = nombre
+        # Se valida todo antes de modificar: un fallo no deja cambios a medias.
+        nuevo_sector = None
+        if sector_codigo is not None and sector_codigo != empresa.sector.codigo:
+            if self._sectores is not None:
+                nuevo_sector = await self._sectores.obtener_por_codigo(sector_codigo)
+            if nuevo_sector is None:
+                raise SectorNoValido()
         if nit is not None and nit != empresa.nit:
             existente = await self._empresas.obtener_por_nit(nit)
             if existente is not None and existente.id != empresa.id:
                 raise NitYaRegistrado()
+
+        if nombre is not None:
+            empresa.nombre = nombre
+        if nit is not None and nit != empresa.nit:
             empresa.nit = nit
+        if nuevo_sector is not None:
+            empresa.sector = nuevo_sector
         if numero_empleados is not None:
             empresa.numero_empleados = numero_empleados
         if ciudad is not None:

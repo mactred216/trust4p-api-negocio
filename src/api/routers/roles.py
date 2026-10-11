@@ -14,6 +14,7 @@ from src.aplicacion.casos_uso.gestionar_roles import (AgregarPermisoARol,
                                                       PermisoNoExiste,
                                                       QuitarPermisoDeRol,
                                                       RolNoEncontrado)
+from src.dominio.catalogo_permisos import nombre_modulo_permiso
 
 router = APIRouter(prefix="/roles", tags=["roles"])
 
@@ -29,7 +30,9 @@ class RolResponse(BaseModel):
 class PermisoResponse(BaseModel):
     id: str
     codigo: str
+    nombre: str  # para mostrar al usuario final
     modulo: str
+    modulo_nombre: str
     descripcion: str
 
 
@@ -70,7 +73,12 @@ async def listar_permisos(
     permisos = await caso_uso.ejecutar()
     return [
         PermisoResponse(
-            id=p.id, codigo=p.codigo, modulo=p.modulo, descripcion=p.descripcion
+            id=p.id,
+            codigo=p.codigo,
+            nombre=p.nombre or p.codigo,
+            modulo=p.modulo,
+            modulo_nombre=nombre_modulo_permiso(p.modulo),
+            descripcion=p.descripcion,
         )
         for p in permisos
     ]

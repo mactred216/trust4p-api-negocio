@@ -157,14 +157,16 @@ def obtener_caso_uso_consultar_usuario(
 def obtener_caso_uso_editar_usuario(
     repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
     repo_empresa: RepositorioMongoEmpresa = Depends(obtener_repositorio_empresa),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
 ) -> EditarUsuario:
-    return EditarUsuario(repo, repo_empresa)
+    return EditarUsuario(repo, repo_empresa, repo_sesion)
 
 
 def obtener_caso_uso_desactivar_usuario(
     repo: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+    repo_sesion: RepositorioMongoSesion = Depends(obtener_repositorio_sesion),
 ) -> DesactivarUsuario:
-    return DesactivarUsuario(repo)
+    return DesactivarUsuario(repo, repo_sesion)
 
 
 def obtener_caso_uso_reactivar_usuario(

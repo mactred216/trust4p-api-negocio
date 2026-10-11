@@ -44,6 +44,9 @@ class UsuarioResponse(BaseModel):
     empresa_id: Optional[str]
     activo: bool
     registro_pendiente: bool = False
+    # Bloqueado temporalmente por intentos fallidos (RF-04); el administrador
+    # puede levantar el bloqueo.
+    bloqueado: bool = False
 
 
 class CrearUsuarioRequest(BaseModel):
@@ -131,6 +134,7 @@ def _a_response(usuario) -> UsuarioResponse:
         empresa_id=usuario.empresa_id,
         activo=usuario.activo,
         registro_pendiente=usuario.registro_pendiente,
+        bloqueado=not usuario.puede_intentar_acceso(),
     )
 
 
@@ -222,6 +226,11 @@ async def editar_usuario(
     campos = datos.model_dump(exclude_unset=True)
     try:
         antes = _resumen_auditoria(await consulta.ejecutar(usuario_id))
+        if (
+            usuario_id == usuario_actual_id
+            and campos.get("rol_codigo") not in (None, antes["rol_codigo"])
+        ):
+            raise ValueError("No puede cambiar su propio rol")
         usuario = await caso_uso.ejecutar(usuario_id, **campos)
     except UsuarioNoEncontrado:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")

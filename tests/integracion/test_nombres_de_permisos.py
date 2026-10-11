@@ -15,7 +15,7 @@ async def test_la_siembra_guarda_el_nombre_para_mostrar(db):
 
 
 @pytest.mark.asyncio
-async def test_un_permiso_que_ya_existia_sin_nombre_lo_recibe_sin_perder_nada_mas(db):
+async def test_un_permiso_que_ya_existia_recibe_nombre_y_descripcion_del_catalogo_sin_perder_su_estado(db):
     await db["permisos"].insert_one(
         {
             "codigo": "roles.gestionar",
@@ -31,6 +31,6 @@ async def test_un_permiso_que_ya_existia_sin_nombre_lo_recibe_sin_perder_nada_ma
 
     doc = await db["permisos"].find_one({"codigo": "roles.gestionar"})
     assert doc["nombre"] == "Gestionar roles y permisos"
-    assert doc["descripcion"] == "Descripción que el sistema ya tenía"
-    assert doc["activo"] is False
+    assert doc["descripcion"] == "Conceder o retirar permisos a cada rol"
+    assert doc["activo"] is False  # lo que no define el catálogo se conserva
     assert await db["permisos"].count_documents({"codigo": "roles.gestionar"}) == 1

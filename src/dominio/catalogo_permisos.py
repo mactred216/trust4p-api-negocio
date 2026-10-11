@@ -47,7 +47,12 @@ PERMISOS_SISTEMA: list[tuple[str, str, str, str]] = [
         "Descargar informes por empresa",
         "Consultar y descargar el informe de las empresas dentro de su alcance",
     ),
-    ("empresas.gestionar", "empresas", "Gestionar empresas", "Gestionar empresas"),
+    (
+        "empresas.gestionar",
+        "empresas",
+        "Gestionar empresas",
+        "Crear, editar, desactivar y reactivar empresas",
+    ),
     (
         "usuarios.gestionar",
         "administracion",
@@ -58,7 +63,7 @@ PERMISOS_SISTEMA: list[tuple[str, str, str, str]] = [
         "roles.gestionar",
         "administracion",
         "Gestionar roles y permisos",
-        "Gestionar roles y permisos",
+        "Conceder o retirar permisos a cada rol",
     ),
     (
         "solicitudes.gestionar",
@@ -76,7 +81,7 @@ PERMISOS_SISTEMA: list[tuple[str, str, str, str]] = [
         "datos.exportar",
         "administracion",
         "Exportar datos",
-        "Exportar datos agregados",
+        "Exportar los indicadores agregados y anonimizados en CSV",
     ),
     (
         "modelo.gestionar",

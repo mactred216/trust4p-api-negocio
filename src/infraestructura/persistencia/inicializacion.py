@@ -19,12 +19,15 @@ async def sembrar_permisos(db: AsyncIOMotorDatabase) -> None:
         await db["permisos"].update_one(
             {"codigo": codigo},
             {
-                # El nombre para mostrar lo define el catálogo: se actualiza también
-                # en los permisos que ya existían sin nombre.
-                "$set": {"nombre": nombre},
-                "$setOnInsert": {
+                # El nombre, el módulo y la descripción los define el catálogo (el
+                # administrador no los edita): se mantienen al día también en los
+                # permisos que ya existían.
+                "$set": {
+                    "nombre": nombre,
                     "modulo": modulo,
                     "descripcion": descripcion,
+                },
+                "$setOnInsert": {
                     "activo": True,
                     "creado_en": ahora,
                 }

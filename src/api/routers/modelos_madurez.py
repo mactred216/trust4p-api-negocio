@@ -7,6 +7,7 @@ from pydantic import BaseModel, field_validator, model_validator
 from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_caso_uso_agregar_eje_perfil_cultural,
                                   obtener_caso_uso_agregar_nivel,
+                                  obtener_caso_uso_agregar_perfil_cultura,
                                   obtener_caso_uso_agregar_pregunta,
                                   obtener_caso_uso_consultar_modelo,
                                   obtener_caso_uso_crear_modelo_madurez,
@@ -15,6 +16,7 @@ from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_caso_uso_editar_dimension,
                                   obtener_caso_uso_editar_eje_perfil_cultural,
                                   obtener_caso_uso_editar_nivel,
+                                  obtener_caso_uso_editar_perfil_cultura,
                                   obtener_caso_uso_editar_pregunta,
                                   obtener_caso_uso_listar_modelos,
                                   obtener_caso_uso_obtener_version_vigente,
@@ -22,6 +24,7 @@ from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_caso_uso_quitar_dimension,
                                   obtener_caso_uso_quitar_eje_perfil_cultural,
                                   obtener_caso_uso_quitar_nivel,
+                                  obtener_caso_uso_quitar_perfil_cultura,
                                   obtener_caso_uso_reactivar_pregunta,
                                   obtener_repositorio_auditoria,
                                   obtener_repositorio_modelo_madurez)
@@ -34,12 +37,13 @@ from src.api.validadores_comunes import (descripcion_opcional, entero_positivo,
                                          texto_no_vacio,
                                          texto_opcional_no_vacio)
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
-    AgregarDimension, AgregarEjePerfilCultural, AgregarNivel, AgregarPregunta,
-    ConsultarModelo, CrearModeloMadurez, CrearNuevaVersion, DesactivarPregunta,
-    EditarDimension, EditarEjePerfilCultural, EditarNivel, EditarPregunta,
+    AgregarDimension, AgregarEjePerfilCultural, AgregarNivel,
+    AgregarPerfilCultura, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
+    CrearNuevaVersion, DesactivarPregunta, EditarDimension,
+    EditarEjePerfilCultural, EditarNivel, EditarPerfilCultura, EditarPregunta,
     ListarModelos, ModeloNoEncontrado, ObtenerVersionVigente, Publicar,
-    QuitarDimension, QuitarEjePerfilCultural, QuitarNivel, ReactivarPregunta,
-    VersionDuplicada)
+    QuitarDimension, QuitarEjePerfilCultural, QuitarNivel, QuitarPerfilCultura,
+    ReactivarPregunta, VersionDuplicada)
 
 TipoPregunta = Literal[
     "seleccion_unica", "seleccion_multiple", "escala", "numerica", "texto_libre"
@@ -103,6 +107,13 @@ class EjePerfilCulturalResponse(BaseModel):
     umbral: Decimal
 
 
+class PerfilCulturaResponse(BaseModel):
+    codigo: str
+    nombre: str
+    descripcion: str
+    activo: bool
+
+
 class ModeloMadurezResponse(BaseModel):
     id: str
     version: str
@@ -115,6 +126,9 @@ class ModeloMadurezResponse(BaseModel):
     preguntas: list[PreguntaResponse]
     niveles: list[NivelResponse]
     ejes_perfil_cultural: list[EjePerfilCulturalResponse]
+    # Combinaciones de polos posibles y el catálogo que el administrador definió
+    combinaciones_perfil_cultural: list[str]
+    perfiles_cultura: list[PerfilCulturaResponse]
 
 
 class CrearModeloRequest(BaseModel):
@@ -403,6 +417,43 @@ class EditarEjePerfilCulturalRequest(BaseModel):
         return texto_opcional_no_vacio(v, maximo=200)
 
 
+class PerfilCulturaRequest(BaseModel):
+    codigo: str
+    nombre: str
+    descripcion: str
+
+    @field_validator("codigo")
+    @classmethod
+    def _codigo_valido(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=20)
+
+    @field_validator("nombre")
+    @classmethod
+    def _nombre_valido(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=200)
+
+    @field_validator("descripcion")
+    @classmethod
+    def _descripcion_valida(cls, v: str) -> str:
+        return texto_no_vacio(v, maximo=2000)
+
+
+class EditarPerfilCulturaRequest(BaseModel):
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    activo: Optional[bool] = None
+
+    @field_validator("nombre")
+    @classmethod
+    def _nombre_valido(cls, v: Optional[str]) -> Optional[str]:
+        return texto_opcional_no_vacio(v, maximo=200)
+
+    @field_validator("descripcion")
+    @classmethod
+    def _descripcion_valida(cls, v: Optional[str]) -> Optional[str]:
+        return texto_opcional_no_vacio(v, maximo=2000)
+
+
 def _a_response(modelo) -> ModeloMadurezResponse:
     return ModeloMadurezResponse(
         id=modelo.id,
@@ -472,6 +523,16 @@ def _a_response(modelo) -> ModeloMadurezResponse:
                 umbral=e.umbral,
             )
             for e in modelo.ejes_perfil_cultural
+        ],
+        combinaciones_perfil_cultural=modelo.combinaciones_perfil_cultural(),
+        perfiles_cultura=[
+            PerfilCulturaResponse(
+                codigo=c.codigo,
+                nombre=c.nombre,
+                descripcion=c.descripcion,
+                activo=c.activo,
+            )
+            for c in modelo.perfiles_cultura
         ],
     )
 
@@ -1027,6 +1088,119 @@ async def quitar_eje_perfil_cultural(
         antes_modelo,
         modelo,
         "ejes_perfil_cultural",
+        "codigo",
+        codigo,
+        "quitado",
+    )
+    return _a_response(modelo)
+
+
+@router.post(
+    "/{modelo_id}/perfiles-cultura",
+    response_model=ModeloMadurezResponse,
+    status_code=201,
+    summary="Definir un perfil de cultura del catálogo",
+    description="RF-14: da nombre y descripción a una de las combinaciones de "
+    "polos de los ejes (p. ej. ENFP). El resultado y el informe muestran este "
+    "contenido cuando la empresa cae en ese perfil.",
+)
+async def agregar_perfil_cultura(
+    modelo_id: str,
+    datos: PerfilCulturaRequest,
+    caso_uso: AgregarPerfilCultura = Depends(obtener_caso_uso_agregar_perfil_cultura),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        modelo = await caso_uso.ejecutar(
+            modelo_id, datos.codigo, datos.nombre, datos.descripcion
+        )
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_nuevos={"perfil_cultura_agregado": datos.codigo},
+    )
+    return _a_response(modelo)
+
+
+@router.patch(
+    "/{modelo_id}/perfiles-cultura/{codigo}",
+    response_model=ModeloMadurezResponse,
+)
+async def editar_perfil_cultura(
+    modelo_id: str,
+    codigo: str,
+    datos: EditarPerfilCulturaRequest,
+    caso_uso: EditarPerfilCultura = Depends(obtener_caso_uso_editar_perfil_cultura),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
+):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
+    try:
+        modelo = await caso_uso.ejecutar(
+            modelo_id,
+            codigo,
+            nombre=datos.nombre,
+            descripcion=datos.descripcion,
+            activo=datos.activo,
+        )
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_cambio_elemento_modelo(
+        repo_auditoria,
+        usuario_actual_id,
+        modelo_id,
+        "perfil_cultura",
+        antes_modelo,
+        modelo,
+        "perfiles_cultura",
+        "codigo",
+        codigo,
+        "editado",
+    )
+    return _a_response(modelo)
+
+
+@router.delete(
+    "/{modelo_id}/perfiles-cultura/{codigo}",
+    response_model=ModeloMadurezResponse,
+)
+async def quitar_perfil_cultura(
+    modelo_id: str,
+    codigo: str,
+    caso_uso: QuitarPerfilCultura = Depends(obtener_caso_uso_quitar_perfil_cultura),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
+):
+    antes_modelo = await repo_modelo.obtener_por_id(modelo_id)
+    try:
+        modelo = await caso_uso.ejecutar(modelo_id, codigo)
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_cambio_elemento_modelo(
+        repo_auditoria,
+        usuario_actual_id,
+        modelo_id,
+        "perfil_cultura",
+        antes_modelo,
+        modelo,
+        "perfiles_cultura",
         "codigo",
         codigo,
         "quitado",

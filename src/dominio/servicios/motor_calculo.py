@@ -4,7 +4,9 @@ from decimal import Decimal
 from typing import Optional
 
 from src.dominio.entidades.diagnostico import Diagnostico, Respuesta
-from src.dominio.entidades.modelo_madurez import ModeloMadurez, Nivel, Pregunta
+from src.dominio.entidades.modelo_madurez import (ORDEN_EJES_PERFIL_CULTURAL,
+                                                  ModeloMadurez, Nivel,
+                                                  Pregunta)
 from src.dominio.servicios.logica_adaptativa import preguntas_aplicables
 
 """RF-12/RF-13 (HU-013/HU-014), ADR-005: motor de cálculo determinístico del
@@ -90,13 +92,6 @@ class PerfilCultural:
 
     codigo: str
     ejes: list[EjeCultural]
-
-
-# Orden canónico de los cuatro ejes (Calderón y Naranjo, 2007; Bridges,
-# 2000) para que el código combinado (p. ej. "EIFP") sea siempre el mismo
-# ante las mismas respuestas — no depende del orden en que el administrador
-# haya configurado los ejes en el modelo.
-ORDEN_EJES_PERFIL_CULTURAL = ["extroversion", "intuicion", "sentimiento", "percepcion"]
 
 
 def determinar_perfil_cultural(

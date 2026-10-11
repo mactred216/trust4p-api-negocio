@@ -192,3 +192,18 @@ async def test_si_la_version_del_modelo_ya_no_existe_no_hay_nombres():
     repo_modelo.obtener_por_version.return_value = None
 
     assert await nombres_de_dimensiones(repo_modelo, crear_diagnostico_evaluado()) == {}
+
+
+def test_el_informe_muestra_el_nombre_del_perfil_del_catalogo():
+    diagnostico = crear_diagnostico_evaluado()
+    diagnostico.resultado.perfil_cultura.nombre = "Innovador nato"
+
+    texto = _texto_del_pdf(generar_informe_pdf(diagnostico))
+
+    assert "Innovador nato (ENFP)" in texto
+
+
+def test_sin_nombre_el_informe_muestra_solo_el_codigo_del_perfil():
+    texto = _texto_del_pdf(generar_informe_pdf(crear_diagnostico_evaluado()))
+
+    assert "Código: ENFP" in texto

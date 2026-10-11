@@ -130,6 +130,7 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
             perfil_cultura=PerfilCulturaResultado(
                 codigo=doc["perfil_cultura"]["codigo"],
                 descripcion=doc["perfil_cultura"].get("descripcion"),
+                nombre=doc["perfil_cultura"].get("nombre"),
             ),
             lienzo_negocio=doc.get("lienzo_negocio"),
             sintesis=doc.get("sintesis"),
@@ -198,6 +199,7 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
             "perfil_cultura": {
                 "codigo": resultado.perfil_cultura.codigo,
                 "descripcion": resultado.perfil_cultura.descripcion,
+                "nombre": resultado.perfil_cultura.nombre,
             },
             "lienzo_negocio": resultado.lienzo_negocio,
             "sintesis": resultado.sintesis,

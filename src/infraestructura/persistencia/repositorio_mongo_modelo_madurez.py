@@ -8,7 +8,9 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
                                                   Dimension, EjePerfilCultural,
                                                   ModeloMadurez, Nivel,
-                                                  OpcionPregunta, Pregunta)
+                                                  OpcionPregunta,
+                                                  PerfilCulturaCatalogo,
+                                                  Pregunta)
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
 
@@ -133,6 +135,15 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                 )
                 for e in doc.get("ejes_perfil_cultural", [])
             ],
+            perfiles_cultura=[
+                PerfilCulturaCatalogo(
+                    codigo=c["codigo"],
+                    nombre=c["nombre"],
+                    descripcion=c["descripcion"],
+                    activo=c.get("activo", True),
+                )
+                for c in doc.get("perfiles_cultura", [])
+            ],
             creado_en=doc["creado_en"],
         )
 
@@ -210,6 +221,15 @@ class RepositorioMongoModeloMadurez(RepositorioModeloMadurez):
                     "umbral": Decimal128(e.umbral),
                 }
                 for e in modelo.ejes_perfil_cultural
+            ],
+            "perfiles_cultura": [
+                {
+                    "codigo": c.codigo,
+                    "nombre": c.nombre,
+                    "descripcion": c.descripcion,
+                    "activo": c.activo,
+                }
+                for c in modelo.perfiles_cultura
             ],
             "creado_en": modelo.creado_en,
         }

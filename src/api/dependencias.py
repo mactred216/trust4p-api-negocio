@@ -273,11 +273,13 @@ def obtener_caso_uso_consultar_auditoria(
 
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
-    AgregarDimension, AgregarEjePerfilCultural, AgregarNivel, AgregarPregunta,
-    ConsultarModelo, CrearModeloMadurez, CrearNuevaVersion, DesactivarPregunta,
-    EditarDimension, EditarEjePerfilCultural, EditarNivel, EditarPregunta,
+    AgregarDimension, AgregarEjePerfilCultural, AgregarNivel,
+    AgregarPerfilCultura, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
+    CrearNuevaVersion, DesactivarPregunta, EditarDimension,
+    EditarEjePerfilCultural, EditarNivel, EditarPerfilCultura, EditarPregunta,
     ListarModelos, ObtenerVersionVigente, Publicar, QuitarDimension,
-    QuitarEjePerfilCultural, QuitarNivel, ReactivarPregunta)
+    QuitarEjePerfilCultural, QuitarNivel, QuitarPerfilCultura,
+    ReactivarPregunta)
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
     RepositorioMongoModeloMadurez
 
@@ -382,6 +384,24 @@ def obtener_caso_uso_quitar_eje_perfil_cultural(
     repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
 ) -> QuitarEjePerfilCultural:
     return QuitarEjePerfilCultural(repo)
+
+
+def obtener_caso_uso_agregar_perfil_cultura(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> AgregarPerfilCultura:
+    return AgregarPerfilCultura(repo)
+
+
+def obtener_caso_uso_editar_perfil_cultura(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> EditarPerfilCultura:
+    return EditarPerfilCultura(repo)
+
+
+def obtener_caso_uso_quitar_perfil_cultura(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> QuitarPerfilCultura:
+    return QuitarPerfilCultura(repo)
 
 
 def obtener_caso_uso_publicar_modelo(

@@ -8,10 +8,11 @@ from pydantic import BaseModel
 from src.api.dependencias import (
     obtener_caso_uso_generar_informe_de_empresa,
     obtener_caso_uso_listar_empresas_para_reporte,
-    obtener_repositorio_auditoria)
+    obtener_repositorio_auditoria, obtener_repositorio_modelo_madurez)
 from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_algun_rol
-from src.aplicacion.casos_uso.generar_informe import DiagnosticoSinResultado
+from src.aplicacion.casos_uso.generar_informe import (
+    DiagnosticoSinResultado, nombres_de_dimensiones)
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, DiagnosticoNoEncontrado)
 from src.aplicacion.casos_uso.gestionar_reportes import (
@@ -106,6 +107,7 @@ async def descargar_informe_de_empresa(
     ),
     usuario_id: str = Depends(acceso_reportes),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
 ):
     try:
         diagnostico = await caso_uso.ejecutar(usuario_id, diagnostico_id)
@@ -129,7 +131,9 @@ async def descargar_informe_de_empresa(
             detail="El diagnóstico todavía no tiene un resultado evaluado",
         )
 
-    contenido_pdf = generar_informe_pdf(diagnostico)
+    contenido_pdf = generar_informe_pdf(
+        diagnostico, await nombres_de_dimensiones(repo_modelo, diagnostico)
+    )
 
     await registrar_accion(
         repo_auditoria,

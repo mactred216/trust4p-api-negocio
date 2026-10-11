@@ -108,3 +108,59 @@ def test_generar_informe_pdf_produce_bytes_no_vacios():
     assert isinstance(contenido, bytes)
     assert contenido.startswith(b"%PDF")
     assert len(contenido) > 100
+
+
+def _texto_del_pdf(contenido: bytes) -> str:
+    import io
+
+    from pypdf import PdfReader
+
+    return "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(contenido)).pages)
+
+
+def test_el_informe_muestra_nombres_de_dimension_y_dos_decimales():
+    diagnostico = crear_diagnostico_evaluado()
+    diagnostico.resultado.indice_global = Decimal("60.9375")
+    diagnostico.resultado.dimensiones[0].puntaje = Decimal("56.25")
+
+    texto = _texto_del_pdf(
+        generar_informe_pdf(diagnostico, {"innovacion": "Capacidad de innovación"})
+    )
+
+    assert "Capacidad de innovación" in texto
+    assert "60.94" in texto and "60.9375" not in texto
+    assert "56.25" in texto
+
+
+def test_sin_nombres_el_informe_usa_el_codigo_de_la_dimension():
+    assert "innovacion" in _texto_del_pdf(generar_informe_pdf(crear_diagnostico_evaluado()))
+
+
+def test_una_observacion_larga_se_parte_en_lineas_y_no_se_sale_de_la_pagina():
+    import io
+
+    from pypdf import PdfReader
+
+    diagnostico = crear_diagnostico_evaluado()
+    diagnostico.resultado.dimensiones[0].observacion = (
+        "La organización cuenta con asignación explícita de recursos y "
+        "seguimiento de la junta directiva sobre el portafolio de innovación, "
+        "lo que es un pilar fuerte del modelo. " * 4
+    )
+
+    pdf = generar_informe_pdf(diagnostico)
+
+    pagina = PdfReader(io.BytesIO(pdf)).pages[0]
+    ancho = float(pagina.mediabox.width)
+    xs = []
+    pagina.extract_text(visitor_text=lambda t, cm, tm, fd, fs: xs.append(tm[4]) if t.strip() else None)
+    assert max(xs) < ancho - 36, "hay texto pegado o fuera del borde derecho"
+
+
+def test_el_texto_con_marcado_no_rompe_el_informe():
+    diagnostico = crear_diagnostico_evaluado()
+    diagnostico.resultado.sintesis = "Ventas <30% & crecimiento </b> sostenido"
+
+    texto = _texto_del_pdf(generar_informe_pdf(diagnostico))
+
+    assert "Ventas <30% & crecimiento </b> sostenido" in texto

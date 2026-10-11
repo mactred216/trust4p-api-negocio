@@ -2,6 +2,8 @@ from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, DiagnosticoNoEncontrado)
 from src.dominio.entidades.diagnostico import Diagnostico
 from src.dominio.puertos.repositorio_diagnostico import RepositorioDiagnostico
+from src.dominio.puertos.repositorio_modelo_madurez import \
+    RepositorioModeloMadurez
 from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
 
 
@@ -39,3 +41,15 @@ class GenerarInformeDiagnostico:
             raise DiagnosticoSinResultado()
 
         return diagnostico
+
+
+async def nombres_de_dimensiones(
+    repo_modelo: RepositorioModeloMadurez, diagnostico: Diagnostico
+) -> dict[str, str]:
+    """Nombre de cada dimensión según la versión del modelo con que se evaluó el
+    diagnóstico, para que el informe no muestre códigos internos. Si esa versión
+    ya no existe, el informe usa el código."""
+    modelo = await repo_modelo.obtener_por_version(diagnostico.modelo_version)
+    if modelo is None:
+        return {}
+    return {d.codigo: d.nombre for d in modelo.dimensiones}

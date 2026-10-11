@@ -9,7 +9,7 @@ async def test_siembra_catalogo_y_roles_de_sistema(db):
     await sembrar_permisos(db)
 
     codigos = {p["codigo"] async for p in db["permisos"].find({})}
-    assert codigos == {c for c, _, _ in PERMISOS_SISTEMA}
+    assert codigos == {c for c, _, _, _ in PERMISOS_SISTEMA}
     for rol, esperados in PERMISOS_POR_ROL.items():
         doc = await db["roles"].find_one({"codigo": rol})
         assert set(doc["permisos"]) == set(esperados)

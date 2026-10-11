@@ -35,6 +35,7 @@ class RepositorioMongoPermiso(RepositorioPermiso):
             modulo=doc["modulo"],
             descripcion=doc["descripcion"],
             activo=doc.get("activo", True),
+            nombre=doc.get("nombre"),
             creado_en=doc["creado_en"],
         )
 
@@ -43,6 +44,7 @@ class RepositorioMongoPermiso(RepositorioPermiso):
             "codigo": permiso.codigo,
             "modulo": permiso.modulo,
             "descripcion": permiso.descripcion,
+            "nombre": permiso.nombre,
             "activo": permiso.activo,
             "creado_en": permiso.creado_en,
         }

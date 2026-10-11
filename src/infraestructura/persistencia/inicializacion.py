@@ -15,10 +15,13 @@ async def sembrar_permisos(db: AsyncIOMotorDatabase) -> None:
     `permisos_sembrados` del rol recuerda lo ya sembrado, de modo que un
     permiso que el administrador retiró no se vuelve a conceder al reiniciar."""
     ahora = datetime.now(timezone.utc)
-    for codigo, modulo, descripcion in PERMISOS_SISTEMA:
+    for codigo, modulo, nombre, descripcion in PERMISOS_SISTEMA:
         await db["permisos"].update_one(
             {"codigo": codigo},
             {
+                # El nombre para mostrar lo define el catálogo: se actualiza también
+                # en los permisos que ya existían sin nombre.
+                "$set": {"nombre": nombre},
                 "$setOnInsert": {
                     "modulo": modulo,
                     "descripcion": descripcion,

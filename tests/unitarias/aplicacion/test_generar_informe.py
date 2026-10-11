@@ -164,3 +164,31 @@ def test_el_texto_con_marcado_no_rompe_el_informe():
     texto = _texto_del_pdf(generar_informe_pdf(diagnostico))
 
     assert "Ventas <30% & crecimiento </b> sostenido" in texto
+
+
+@pytest.mark.asyncio
+async def test_los_nombres_de_dimension_salen_de_la_version_del_modelo_evaluada():
+    from types import SimpleNamespace
+
+    from src.aplicacion.casos_uso.generar_informe import nombres_de_dimensiones
+
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = SimpleNamespace(
+        dimensiones=[SimpleNamespace(codigo="innovacion", nombre="Capacidad de innovación")]
+    )
+    diagnostico = crear_diagnostico_evaluado()
+
+    nombres = await nombres_de_dimensiones(repo_modelo, diagnostico)
+
+    assert nombres == {"innovacion": "Capacidad de innovación"}
+    repo_modelo.obtener_por_version.assert_awaited_once_with(diagnostico.modelo_version)
+
+
+@pytest.mark.asyncio
+async def test_si_la_version_del_modelo_ya_no_existe_no_hay_nombres():
+    from src.aplicacion.casos_uso.generar_informe import nombres_de_dimensiones
+
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = None
+
+    assert await nombres_de_dimensiones(repo_modelo, crear_diagnostico_evaluado()) == {}

@@ -11,8 +11,8 @@ from src.api.dependencias import (
     obtener_repositorio_auditoria, obtener_repositorio_modelo_madurez)
 from src.api.middleware.auditoria import registrar_accion
 from src.api.middleware.autorizacion import requiere_algun_rol
-from src.aplicacion.casos_uso.generar_informe import (
-    DiagnosticoSinResultado, nombres_de_dimensiones)
+from src.aplicacion.casos_uso.generar_informe import (DiagnosticoSinResultado,
+                                                      nombres_de_dimensiones)
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, DiagnosticoNoEncontrado)
 from src.aplicacion.casos_uso.gestionar_reportes import (

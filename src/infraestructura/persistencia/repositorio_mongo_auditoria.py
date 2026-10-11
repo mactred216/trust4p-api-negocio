@@ -21,6 +21,7 @@ class RepositorioMongoAuditoria(RepositorioAuditoria):
         entidad_id: Optional[str] = None,
         usuario_id: Optional[str] = None,
         limite: int = 50,
+        usuario_ids: Optional[list[str]] = None,
     ) -> list[RegistroAuditoria]:
         filtro = {}
         if entidad:
@@ -29,6 +30,12 @@ class RepositorioMongoAuditoria(RepositorioAuditoria):
             filtro["entidad_id"] = entidad_id
         if usuario_id:
             filtro["usuario_id"] = usuario_id
+        if usuario_ids is not None:
+            filtro["usuario_id"] = (
+                {"$in": usuario_ids}
+                if not usuario_id
+                else {"$in": [i for i in usuario_ids if i == usuario_id]}
+            )
 
         cursor = self._coleccion.find(filtro).sort("registrado_en", -1).limit(limite)
         documentos = await cursor.to_list(length=None)

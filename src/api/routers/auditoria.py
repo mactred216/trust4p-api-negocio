@@ -14,6 +14,8 @@ router = APIRouter(prefix="/auditoria", tags=["auditoria"])
 class RegistroAuditoriaResponse(BaseModel):
     id: str
     usuario_id: Optional[str]
+    usuario_nombre: Optional[str] = None
+    usuario_correo: Optional[str] = None
     entidad: str
     entidad_id: Optional[str]
     accion: str
@@ -26,7 +28,9 @@ class RegistroAuditoriaResponse(BaseModel):
     "",
     response_model=list[RegistroAuditoriaResponse],
     summary="Consultar bitácora de auditoría",
-    description="Exclusivo del administrador. Permite filtrar por entidad, id del recurso o usuario.",
+    description="Exclusivo del administrador. Permite filtrar por entidad, id del recurso o "
+    "usuario (por nombre o correo, completo o parcial). Cada registro trae el nombre y el "
+    "correo de quien ejecutó la acción.",
 )
 async def consultar_auditoria(
     entidad: Optional[str] = Query(
@@ -38,25 +42,36 @@ async def consultar_auditoria(
     usuario_id: Optional[str] = Query(
         default=None, description="Id de quien ejecutó la acción"
     ),
+    usuario: Optional[str] = Query(
+        default=None,
+        max_length=100,
+        description="Nombre o correo (completo o parcial) de quien ejecutó la acción",
+    ),
     limite: int = Query(default=50, le=200),
     caso_uso: ConsultarAuditoria = Depends(obtener_caso_uso_consultar_auditoria),
     usuario_actual_id: str = Depends(
         requiere_rol("administrador", "auditoria.consultar")
     ),
 ):
-    registros = await caso_uso.ejecutar(
-        entidad=entidad, entidad_id=entidad_id, usuario_id=usuario_id, limite=limite
+    entradas = await caso_uso.ejecutar(
+        entidad=entidad,
+        entidad_id=entidad_id,
+        usuario_id=usuario_id,
+        limite=limite,
+        usuario=usuario,
     )
     return [
         RegistroAuditoriaResponse(
-            id=r.id,
-            usuario_id=r.usuario_id,
-            entidad=r.entidad,
-            entidad_id=r.entidad_id,
-            accion=r.accion,
-            valores_anteriores=r.valores_anteriores,
-            valores_nuevos=r.valores_nuevos,
-            registrado_en=r.registrado_en,
+            id=e.registro.id,
+            usuario_id=e.registro.usuario_id,
+            usuario_nombre=e.usuario_nombre,
+            usuario_correo=e.usuario_correo,
+            entidad=e.registro.entidad,
+            entidad_id=e.registro.entidad_id,
+            accion=e.registro.accion,
+            valores_anteriores=e.registro.valores_anteriores,
+            valores_nuevos=e.registro.valores_nuevos,
+            registrado_en=e.registro.registrado_en,
         )
-        for r in registros
+        for e in entradas
     ]

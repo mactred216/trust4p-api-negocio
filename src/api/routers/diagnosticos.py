@@ -57,6 +57,7 @@ class DimensionResultadoResponse(BaseModel):
 class PerfilCulturaResponse(BaseModel):
     codigo: str
     descripcion: Optional[str]
+    nombre: Optional[str] = None
 
 
 class ResultadoDiagnosticoResponse(BaseModel):
@@ -368,6 +369,7 @@ def _resultado_a_response(resultado) -> Optional[ResultadoDiagnosticoResponse]:
         perfil_cultura=PerfilCulturaResponse(
             codigo=resultado.perfil_cultura.codigo,
             descripcion=resultado.perfil_cultura.descripcion,
+            nombre=resultado.perfil_cultura.nombre,
         ),
         lienzo_negocio=resultado.lienzo_negocio,
         sintesis=resultado.sintesis,

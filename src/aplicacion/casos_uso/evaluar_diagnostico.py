@@ -75,6 +75,12 @@ class EvaluarDiagnostico:
         # agente — no al final, ni junto con la respuesta del agente — para
         # que un fallo del servicio de inferencia nunca arrastre consigo el
         # resultado numérico ya calculado.
+        # RF-14: si el administrador definió este perfil en el catálogo del
+        # modelo, su nombre y descripción son los del resultado; si no, la
+        # descripción la redacta el agente.
+        perfil_catalogo = modelo.perfil_cultura_para(
+            resultado_calculo.perfil_cultural.codigo
+        )
         resultado = ResultadoDiagnostico(
             indice_global=resultado_calculo.indice_global,
             nivel=resultado_calculo.nivel,
@@ -84,7 +90,8 @@ class EvaluarDiagnostico:
                 for d in resultado_calculo.dimensiones
             ],
             perfil_cultura=PerfilCulturaResultado(
-                codigo=resultado_calculo.perfil_cultural.codigo
+                codigo=resultado_calculo.perfil_cultural.codigo,
+                nombre=perfil_catalogo.nombre if perfil_catalogo else None,
             ),
         )
         diagnostico.registrar_resultado_calculado(resultado)
@@ -101,7 +108,11 @@ class EvaluarDiagnostico:
             return
 
         diagnostico.marcar_evaluado(
-            perfil_cultura_descripcion=respuesta_agente.perfil_cultura_descripcion,
+            perfil_cultura_descripcion=(
+                perfil_catalogo.descripcion
+                if perfil_catalogo
+                else respuesta_agente.perfil_cultura_descripcion
+            ),
             dimensiones_observaciones=respuesta_agente.dimensiones_observaciones,
             lienzo_negocio=respuesta_agente.lienzo_negocio,
             sintesis=respuesta_agente.sintesis,

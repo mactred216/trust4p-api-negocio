@@ -128,9 +128,11 @@ def generar_informe_pdf(
     cuerpo.append(Spacer(1, 12))
 
     cuerpo.append(Paragraph("Perfil de cultura de innovación", estilos["Heading2"]))
-    cuerpo.append(
-        Paragraph(f"Código: {escape(str(resultado.perfil_cultura.codigo))}", normal)
-    )
+    perfil = resultado.perfil_cultura
+    titulo_perfil = f"Código: {escape(str(perfil.codigo))}"
+    if perfil.nombre:
+        titulo_perfil = f"{escape(perfil.nombre)} ({escape(str(perfil.codigo))})"
+    cuerpo.append(Paragraph(titulo_perfil, normal))
     cuerpo.append(Paragraph(_texto(resultado.perfil_cultura.descripcion), normal))
     cuerpo.append(Spacer(1, 12))
 

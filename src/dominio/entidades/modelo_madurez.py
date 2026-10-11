@@ -50,6 +50,16 @@ EJES_PERFIL_CULTURAL_CODIGOS = {
 }
 
 
+# Orden en que se combinan los polos de los cuatro ejes para formar el código
+# del perfil (Calderón y Naranjo, 2007; Bridges, 2000).
+ORDEN_EJES_PERFIL_CULTURAL = (
+    "extroversion",
+    "intuicion",
+    "sentimiento",
+    "percepcion",
+)
+
+
 @dataclass
 class EjePerfilCultural:
     codigo: str  # uno de EJES_PERFIL_CULTURAL_CODIGOS
@@ -60,6 +70,19 @@ class EjePerfilCultural:
     polo_bajo_nombre: str  # p. ej. "Introvertida"
     dimension_codigo: str  # dimensión del modelo que determina este eje
     umbral: Decimal  # puntaje de la dimensión >= umbral -> polo alto
+
+
+@dataclass
+class PerfilCulturaCatalogo:
+    """RF-14: nombre y descripción que el administrador da a una de las
+    combinaciones de polos (p. ej. "ENFP"). Es contenido del resultado: el
+    cálculo sigue saliendo de los ejes; el catálogo solo dice cómo se llama y
+    se describe el perfil que resulte."""
+
+    codigo: str  # combinación de los cuatro polos, p. ej. "ENFP"
+    nombre: str
+    descripcion: str
+    activo: bool = True
 
 
 TIPOS_CON_OPCIONES = {"seleccion_unica", "seleccion_multiple"}
@@ -98,6 +121,7 @@ class ModeloMadurez:
         default_factory=list
     )  # RF-28/RF-31, HU-029/HU-032
     ejes_perfil_cultural: list[EjePerfilCultural] = field(default_factory=list)  # RF-14
+    perfiles_cultura: list[PerfilCulturaCatalogo] = field(default_factory=list)  # RF-14
     creado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def agregar_dimension(self, dimension: Dimension) -> None:
@@ -407,6 +431,89 @@ class ModeloMadurez:
                     f"'{eje.dimension_codigo}', que no existe en esta versión"
                 )
 
+    def combinaciones_perfil_cultural(self) -> list[str]:
+        """Códigos de perfil posibles según los polos de los ejes configurados
+        (16 con los cuatro ejes). Vacío mientras falte algún eje."""
+        por_codigo = {e.codigo: e for e in self.ejes_perfil_cultural}
+        if any(codigo not in por_codigo for codigo in ORDEN_EJES_PERFIL_CULTURAL):
+            return []
+        combinaciones = [""]
+        for codigo in ORDEN_EJES_PERFIL_CULTURAL:
+            eje = por_codigo[codigo]
+            combinaciones = [
+                previo + polo
+                for previo in combinaciones
+                for polo in (eje.polo_alto_codigo, eje.polo_bajo_codigo)
+            ]
+        return combinaciones
+
+    def agregar_perfil_cultura(
+        self, codigo: str, nombre: str, descripcion: str
+    ) -> None:
+        self._validar_editable()
+        combinaciones = self.combinaciones_perfil_cultural()
+        if not combinaciones:
+            raise ValueError(
+                "Configure primero los cuatro ejes del perfil de cultura: de sus "
+                "polos salen los perfiles posibles"
+            )
+        if codigo not in combinaciones:
+            raise ValueError(
+                f"'{codigo}' no es una combinación válida de polos; debe ser una de "
+                f"{', '.join(combinaciones)}"
+            )
+        if any(p.codigo == codigo for p in self.perfiles_cultura):
+            raise ValueError(f"El perfil '{codigo}' ya está definido")
+        self.perfiles_cultura.append(
+            PerfilCulturaCatalogo(codigo=codigo, nombre=nombre, descripcion=descripcion)
+        )
+
+    def editar_perfil_cultura(
+        self,
+        codigo: str,
+        nombre: Optional[str] = None,
+        descripcion: Optional[str] = None,
+        activo: Optional[bool] = None,
+    ) -> None:
+        self._validar_editable()
+        perfil = self._buscar_perfil_cultura(codigo)
+        if nombre is not None:
+            perfil.nombre = nombre
+        if descripcion is not None:
+            perfil.descripcion = descripcion
+        if activo is not None:
+            perfil.activo = activo
+
+    def quitar_perfil_cultura(self, codigo: str) -> None:
+        self._validar_editable()
+        self.perfiles_cultura.remove(self._buscar_perfil_cultura(codigo))
+
+    def perfil_cultura_para(self, codigo: str) -> Optional[PerfilCulturaCatalogo]:
+        """El perfil activo del catálogo para un código, o None si no hay."""
+        for perfil in self.perfiles_cultura:
+            if perfil.codigo == codigo and perfil.activo:
+                return perfil
+        return None
+
+    def validar_perfiles_cultura(self) -> None:
+        """Los perfiles definidos deben seguir siendo combinaciones válidas de
+        los polos de los ejes (que se pueden haber cambiado después)."""
+        combinaciones = set(self.combinaciones_perfil_cultural())
+        invalidos = sorted(
+            p.codigo for p in self.perfiles_cultura if p.codigo not in combinaciones
+        )
+        if invalidos:
+            raise ValueError(
+                f"Los perfiles de cultura {invalidos} ya no corresponden a los polos "
+                "de los ejes; quítelos o vuelva a definirlos"
+            )
+
+    def _buscar_perfil_cultura(self, codigo: str) -> PerfilCulturaCatalogo:
+        for perfil in self.perfiles_cultura:
+            if perfil.codigo == codigo:
+                return perfil
+        raise ValueError(f"No existe el perfil de cultura '{codigo}'")
+
     def _buscar_eje_perfil_cultural(self, codigo: str) -> EjePerfilCultural:
         for eje in self.ejes_perfil_cultural:
             if eje.codigo == codigo:
@@ -422,6 +529,7 @@ class ModeloMadurez:
         self.validar_pesos_preguntas()
         self.validar_niveles()
         self.validar_ejes_perfil_cultural()
+        self.validar_perfiles_cultura()
         self.publicado = True
         self.publicado_en = datetime.now(timezone.utc)
         self.publicado_por = publicado_por

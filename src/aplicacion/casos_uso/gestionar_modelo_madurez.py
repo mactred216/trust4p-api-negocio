@@ -5,7 +5,9 @@ from typing import Optional
 from src.dominio.entidades.modelo_madurez import (CondicionActivacion,
                                                   Dimension, EjePerfilCultural,
                                                   ModeloMadurez, Nivel,
-                                                  OpcionPregunta, Pregunta)
+                                                  OpcionPregunta,
+                                                  PerfilCulturaCatalogo,
+                                                  Pregunta)
 from src.dominio.puertos.repositorio_modelo_madurez import \
     RepositorioModeloMadurez
 
@@ -404,6 +406,59 @@ class QuitarEjePerfilCultural:
         return modelo
 
 
+class AgregarPerfilCultura:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(
+        self, modelo_id: str, codigo: str, nombre: str, descripcion: str
+    ) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.agregar_perfil_cultura(codigo, nombre, descripcion)
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class EditarPerfilCultura:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(
+        self,
+        modelo_id: str,
+        codigo: str,
+        nombre: Optional[str] = None,
+        descripcion: Optional[str] = None,
+        activo: Optional[bool] = None,
+    ) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.editar_perfil_cultura(
+            codigo, nombre=nombre, descripcion=descripcion, activo=activo
+        )
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
+class QuitarPerfilCultura:
+    def __init__(self, repo: RepositorioModeloMadurez):
+        self._modelos = repo
+
+    async def ejecutar(self, modelo_id: str, codigo: str) -> ModeloMadurez:
+        modelo = await self._modelos.obtener_por_id(modelo_id)
+        if modelo is None:
+            raise ModeloNoEncontrado()
+
+        modelo.quitar_perfil_cultura(codigo)
+        await self._modelos.actualizar(modelo)
+        return modelo
+
+
 class Publicar:
     """RF-33/RF-34: publica la versión vigente, ensamblando R-02, R-03 y R-04."""
 
@@ -445,7 +500,7 @@ def _siguiente_version(version_actual: str) -> str:
 class CrearNuevaVersion:
     """RF-34 paso 2: la vía prescrita para modificar una versión publicada —
     clona su configuración completa (dimensiones, niveles, preguntas con su
-    estado y ejes del perfil de cultura) en una versión nueva, sin publicar, lista para editarse.
+    estado, ejes y catálogo de perfiles de cultura) en una versión nueva, sin publicar, lista para editarse.
     """
 
     def __init__(self, repo: RepositorioModeloMadurez):
@@ -531,6 +586,15 @@ class CrearNuevaVersion:
                     umbral=e.umbral,
                 )
                 for e in origen.ejes_perfil_cultural
+            ],
+            perfiles_cultura=[
+                PerfilCulturaCatalogo(
+                    codigo=p.codigo,
+                    nombre=p.nombre,
+                    descripcion=p.descripcion,
+                    activo=p.activo,
+                )
+                for p in origen.perfiles_cultura
             ],
         )
         return await self._modelos.guardar(clon)

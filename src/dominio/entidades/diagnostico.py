@@ -29,6 +29,7 @@ class DimensionResultado:
 class PerfilCulturaResultado:
     codigo: str
     descripcion: Optional[str] = None
+    nombre: Optional[str] = None  # nombre del catálogo del modelo, si lo hay
 
 
 @dataclass

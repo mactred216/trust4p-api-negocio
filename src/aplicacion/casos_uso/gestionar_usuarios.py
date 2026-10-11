@@ -11,6 +11,7 @@ from src.dominio.entidades.usuario import Rol, Usuario
 from src.dominio.puertos.repositorio_empresa import RepositorioEmpresa
 from src.dominio.puertos.repositorio_notificacion import \
     RepositorioNotificacion
+from src.dominio.puertos.repositorio_sesion import RepositorioSesion
 from src.dominio.puertos.repositorio_token import RepositorioToken
 from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
 from src.dominio.puertos.servicio_correo import ServicioCorreo
@@ -154,13 +155,19 @@ class CrearUsuario:
 
 
 class EditarUsuario:
+    """Cambiar el rol o la empresa de un usuario cierra sus sesiones abiertas:
+    la sesión guarda el rol y los permisos con que inició, así que sin esto el
+    cambio no valdría hasta que expirara por inactividad."""
+
     def __init__(
         self,
         repo: RepositorioUsuario,
         repo_empresa: Optional[RepositorioEmpresa] = None,
+        repo_sesion: Optional[RepositorioSesion] = None,
     ):
         self._usuarios = repo
         self._empresas = repo_empresa
+        self._sesiones = repo_sesion
 
     async def ejecutar(
         self,
@@ -174,6 +181,7 @@ class EditarUsuario:
         if usuario is None:
             raise UsuarioNoEncontrado()
 
+        rol_anterior, empresa_anterior = usuario.rol.codigo, usuario.empresa_id
         if rol_codigo is not None or empresa_id is not None:
             rol_final = rol_codigo or usuario.rol.codigo
             empresa_final = empresa_id
@@ -190,14 +198,26 @@ class EditarUsuario:
             usuario.rol = Rol(codigo=rol_codigo, permisos=usuario.rol.permisos)
 
         await self._usuarios.actualizar(usuario)
+        cambio_acceso = (
+            usuario.rol.codigo != rol_anterior or usuario.empresa_id != empresa_anterior
+        )
+        if cambio_acceso and self._sesiones is not None:
+            await self._sesiones.revocar_todas_de_usuario(usuario.id)
         return usuario
 
 
 class DesactivarUsuario:
-    """RF-26: baja lógica. No elimina el historial de diagnósticos asociados."""
+    """RF-26: baja lógica. No elimina el historial de diagnósticos asociados.
+    Cierra sus sesiones abiertas: no puede volver a entrar, y tampoco seguir
+    trabajando con la sesión que ya tenía."""
 
-    def __init__(self, repo: RepositorioUsuario):
+    def __init__(
+        self,
+        repo: RepositorioUsuario,
+        repo_sesion: Optional[RepositorioSesion] = None,
+    ):
         self._usuarios = repo
+        self._sesiones = repo_sesion
 
     async def ejecutar(self, usuario_id: str) -> None:
         usuario = await self._usuarios.obtener_por_id(usuario_id)
@@ -206,6 +226,8 @@ class DesactivarUsuario:
 
         usuario.desactivar()
         await self._usuarios.actualizar(usuario)
+        if self._sesiones is not None:
+            await self._sesiones.revocar_todas_de_usuario(usuario.id)
 
 
 class ReactivarUsuario:

@@ -8,7 +8,8 @@ from src.api.dependencias import (
     obtener_caso_uso_consultar_indicadores,
     obtener_caso_uso_generar_informe_de_empresa,
     obtener_caso_uso_listar_empresas_para_reporte,
-    obtener_repositorio_auditoria, obtener_repositorio_sesion)
+    obtener_repositorio_auditoria, obtener_repositorio_modelo_madurez,
+    obtener_repositorio_sesion)
 from src.api.main import app
 from src.aplicacion.casos_uso.generar_informe import DiagnosticoSinResultado
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
@@ -51,6 +52,11 @@ def diagnostico_evaluado():
 def entorno():
     repo_sesion = AsyncMock()
     repo_auditoria = AsyncMock()
+    # El informe consulta el modelo para rotular las dimensiones; sin modelo usa
+    # el código y la prueba no depende de la base de datos.
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = None
+    app.dependency_overrides[obtener_repositorio_modelo_madurez] = lambda: repo_modelo
     app.dependency_overrides[obtener_repositorio_sesion] = lambda: repo_sesion
     app.dependency_overrides[obtener_repositorio_auditoria] = lambda: repo_auditoria
     cliente = TestClient(app, cookies={"sesion": "t"})

@@ -1,33 +1,64 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
 
 from src.api.dependencias import (
+    obtener_caso_uso_avanzar_nivel,
     obtener_caso_uso_consultar_diagnostico_asignado,
+    obtener_caso_uso_editar_tarea,
     obtener_caso_uso_listar_diagnosticos_empresa_asignada,
     obtener_caso_uso_listar_empresas_asignadas,
     obtener_caso_uso_obtener_cuestionario_asignado,
     obtener_caso_uso_registrar_recomendacion, obtener_repositorio_auditoria)
-from src.api.middleware.auditoria import registrar_accion
+from src.api.middleware.auditoria import registrar_accion, registrar_cambio
 from src.api.middleware.autorizacion import requiere_rol
 from src.api.routers.diagnosticos import (CuestionarioResponse,
                                           DiagnosticoResponse,
                                           RecomendacionResponse, _a_response,
-                                          _cuestionario_a_response)
+                                          _cuestionario_a_response,
+                                          _recomendacion_a_response)
 from src.api.validadores_comunes import texto_no_vacio, texto_opcional_no_vacio
 from src.aplicacion.casos_uso.gestionar_consultoria import (
-    ConsultarDiagnosticoAsignado, ListarDiagnosticosDeEmpresaAsignada,
-    ListarEmpresasAsignadas, ObtenerCuestionarioAsignado,
-    RegistrarRecomendacion)
+    AvanzarNivel, ConsultarDiagnosticoAsignado, EditarTarea,
+    ListarDiagnosticosDeEmpresaAsignada, ListarEmpresasAsignadas,
+    ObtenerCuestionarioAsignado, RegistrarRecomendacion, TareaNoEncontrada)
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, DiagnosticoNoEncontrado)
 
 router = APIRouter(prefix="/consultoria", tags=["consultoria"])
 
 MENSAJE_SIN_ASIGNACION = "No tiene una asignación vigente con esta empresa"
+
+
+class EditarTareaRequest(BaseModel):
+    """Solo se cambia lo que se envía; fecha_limite en null la quita."""
+
+    titulo: Optional[str] = None
+    contenido: Optional[str] = None
+    estado: Optional[Literal["pendiente", "en_curso", "completada"]] = None
+    fecha_limite: Optional[date] = None
+    nivel_objetivo: Optional[int] = None
+    visible: Optional[bool] = None
+
+    @field_validator("titulo")
+    @classmethod
+    def _titulo_valido(cls, v: Optional[str]) -> Optional[str]:
+        return None if v is None else texto_no_vacio(v, maximo=200)
+
+    @field_validator("contenido")
+    @classmethod
+    def _contenido_valido(cls, v: Optional[str]) -> Optional[str]:
+        return None if v is None else texto_no_vacio(v, maximo=2000)
+
+    @field_validator("nivel_objetivo")
+    @classmethod
+    def _nivel_valido(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 1:
+            raise ValueError("El nivel objetivo debe ser 1 o mayor")
+        return v
 
 
 class EmpresaAsignadaResponse(BaseModel):
@@ -46,6 +77,15 @@ class RegistrarRecomendacionRequest(BaseModel):
     contenido: str
     dimension_codigo: Optional[str] = None
     visible: bool = True
+    fecha_limite: Optional[date] = None
+    nivel_objetivo: Optional[int] = None
+
+    @field_validator("nivel_objetivo")
+    @classmethod
+    def _nivel_valido(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 1:
+            raise ValueError("El nivel objetivo debe ser 1 o mayor")
+        return v
 
     @field_validator("titulo")
     @classmethod
@@ -227,6 +267,8 @@ async def registrar_recomendacion(
             contenido=datos.contenido,
             dimension_codigo=datos.dimension_codigo,
             visible=datos.visible,
+            fecha_limite=datos.fecha_limite,
+            nivel_objetivo=datos.nivel_objetivo,
         )
     except DiagnosticoNoEncontrado:
         raise HTTPException(status_code=404, detail="Diagnóstico no encontrado")
@@ -251,14 +293,100 @@ async def registrar_recomendacion(
         "actualizar",
         valores_nuevos={"recomendacion_registrada": recomendacion.titulo},
     )
-    return RecomendacionResponse(
-        origen=recomendacion.origen,
-        dimension_codigo=recomendacion.dimension_codigo,
-        titulo=recomendacion.titulo,
-        contenido=recomendacion.contenido,
-        prioridad=recomendacion.prioridad,
-        visible=recomendacion.visible,
-        autor_id=recomendacion.autor_id,
-        autor_nombre=recomendacion.autor_nombre,
-        creado_en=recomendacion.creado_en,
+    return _recomendacion_a_response(recomendacion)
+
+
+@router.patch(
+    "/diagnosticos/{diagnostico_id}/recomendaciones/{tarea_id}",
+    response_model=RecomendacionResponse,
+    summary="Editar una tarea del plan de mejora",
+    description="El consultor con la empresa asignada gestiona las tareas: cambia su estado "
+    "(pendiente, en curso, completada), su fecha límite, su nivel objetivo, su texto o si se "
+    "comparte con la empresa. No admite diagnósticos cerrados. Cada cambio queda en la bitácora.",
+)
+async def editar_tarea(
+    diagnostico_id: str,
+    tarea_id: str,
+    datos: EditarTareaRequest,
+    caso_uso: EditarTarea = Depends(obtener_caso_uso_editar_tarea),
+    usuario_id: str = Depends(requiere_rol("consultor", "recomendaciones.registrar")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    # null solo significa "quitar" en la fecha límite; en los demás campos es "no cambiar".
+    cambios = {
+        campo: valor
+        for campo, valor in datos.model_dump(exclude_unset=True).items()
+        if valor is not None or campo == "fecha_limite"
+    }
+    try:
+        cambio = await caso_uso.ejecutar(usuario_id, diagnostico_id, tarea_id, cambios)
+    except DiagnosticoNoEncontrado:
+        raise HTTPException(status_code=404, detail="Diagnóstico no encontrado")
+    except TareaNoEncontrada:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    except AccesoNoAutorizado:
+        await registrar_accion(
+            repo_auditoria,
+            usuario_id,
+            "diagnosticos",
+            diagnostico_id,
+            "actualizar",
+            valores_nuevos={"acceso": "denegado"},
+        )
+        raise HTTPException(status_code=403, detail=MENSAJE_SIN_ASIGNACION)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_cambio(
+        repo_auditoria,
+        usuario_id,
+        "diagnosticos",
+        diagnostico_id,
+        cambio.antes,
+        cambio.despues,
+        extra={"tarea_id": tarea_id, "tarea": cambio.despues["titulo"]},
     )
+    return _recomendacion_a_response(cambio.recomendacion, cambio.diagnostico)
+
+
+@router.post(
+    "/diagnosticos/{diagnostico_id}/avanzar-nivel",
+    response_model=DiagnosticoResponse,
+    summary="Confirmar que la empresa alcanzó el siguiente nivel",
+    description="El consultor con la empresa asignada confirma el avance cuando todas las "
+    "tareas compartidas para llegar al siguiente nivel están completadas (y hay al menos una). "
+    "Avisa al representante. Con dos niveles de avance se recomienda un nuevo diagnóstico.",
+)
+async def avanzar_nivel(
+    diagnostico_id: str,
+    caso_uso: AvanzarNivel = Depends(obtener_caso_uso_avanzar_nivel),
+    usuario_id: str = Depends(requiere_rol("consultor", "recomendaciones.registrar")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        diagnostico, avance, nivel_anterior = await caso_uso.ejecutar(usuario_id, diagnostico_id)
+    except DiagnosticoNoEncontrado:
+        raise HTTPException(status_code=404, detail="Diagnóstico no encontrado")
+    except AccesoNoAutorizado:
+        await registrar_accion(
+            repo_auditoria,
+            usuario_id,
+            "diagnosticos",
+            diagnostico_id,
+            "actualizar",
+            valores_nuevos={"acceso": "denegado"},
+        )
+        raise HTTPException(status_code=403, detail=MENSAJE_SIN_ASIGNACION)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "diagnosticos",
+        diagnostico_id,
+        "actualizar",
+        valores_anteriores={"nivel_alcanzado": nivel_anterior},
+        valores_nuevos={"nivel_alcanzado": avance.nivel},
+    )
+    return _a_response(diagnostico, incluir_ocultas=True)

@@ -1,3 +1,5 @@
+import hashlib
+from datetime import date
 from decimal import Decimal
 from typing import Optional
 
@@ -5,8 +7,8 @@ from bson import Decimal128, ObjectId
 from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from src.dominio.entidades.diagnostico import (ESTADO_CERRADO, Diagnostico,
-                                               DimensionResultado,
+from src.dominio.entidades.diagnostico import (ESTADO_CERRADO, AvanceNivel,
+                                               Diagnostico, DimensionResultado,
                                                PerfilCulturaResultado,
                                                Recomendacion, Respuesta,
                                                ResultadoDiagnostico)
@@ -100,8 +102,28 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
                     autor_nombre=r.get("autor_nombre"),
                     visible=r.get("visible", True),
                     creado_en=r["creado_en"],
+                    # Las anteriores al plan de mejora no guardaron id: se deriva uno
+                    # estable de sus datos para poder editarlas como tarea.
+                    id=r.get("id") or self._id_de_recomendacion_antigua(r),
+                    estado=r.get("estado", "pendiente"),
+                    fecha_limite=(
+                        date.fromisoformat(r["fecha_limite"]) if r.get("fecha_limite") else None
+                    ),
+                    nivel_objetivo=r.get("nivel_objetivo"),
+                    actualizado_en=r.get("actualizado_en"),
+                    completada_en=r.get("completada_en"),
                 )
                 for r in doc.get("recomendaciones", [])
+            ],
+            nivel_alcanzado=doc.get("nivel_alcanzado"),
+            avances_de_nivel=[
+                AvanceNivel(
+                    nivel=a["nivel"],
+                    alcanzado_en=a["alcanzado_en"],
+                    consultor_id=a.get("consultor_id"),
+                    consultor_nombre=a.get("consultor_nombre"),
+                )
+                for a in doc.get("avances_de_nivel", [])
             ],
             motivo_fallo=doc.get("motivo_fallo"),
             iniciado_en=doc["iniciado_en"],
@@ -169,8 +191,24 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
                     "prioridad": r.prioridad,
                     "visible": r.visible,
                     "creado_en": r.creado_en,
+                    "id": r.id,
+                    "estado": r.estado,
+                    "fecha_limite": r.fecha_limite.isoformat() if r.fecha_limite else None,
+                    "nivel_objetivo": r.nivel_objetivo,
+                    "actualizado_en": r.actualizado_en,
+                    "completada_en": r.completada_en,
                 }
                 for r in diagnostico.recomendaciones
+            ],
+            "nivel_alcanzado": diagnostico.nivel_alcanzado,
+            "avances_de_nivel": [
+                {
+                    "nivel": a.nivel,
+                    "alcanzado_en": a.alcanzado_en,
+                    "consultor_id": a.consultor_id,
+                    "consultor_nombre": a.consultor_nombre,
+                }
+                for a in diagnostico.avances_de_nivel
             ],
             "motivo_fallo": diagnostico.motivo_fallo,
             "iniciado_en": diagnostico.iniciado_en,
@@ -178,6 +216,11 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
             "evaluado_en": diagnostico.evaluado_en,
             "cerrado_en": diagnostico.cerrado_en,
         }
+
+    @staticmethod
+    def _id_de_recomendacion_antigua(r: dict) -> str:
+        base = f"{r.get('origen')}|{r.get('titulo')}|{r.get('creado_en')}"
+        return "ant-" + hashlib.sha1(base.encode("utf-8")).hexdigest()[:16]
 
     def _resultado_a_documento(
         self, resultado: Optional[ResultadoDiagnostico]

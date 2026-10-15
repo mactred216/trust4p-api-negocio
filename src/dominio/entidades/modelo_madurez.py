@@ -335,6 +335,11 @@ class ModeloMadurez:
         nivel.umbral_min = nuevo_min
         nivel.umbral_max = nuevo_max
 
+    def reemplazar_niveles(self, niveles: list[Nivel]) -> None:
+        """Sustituye toda la rúbrica (solo en un borrador)."""
+        self._validar_editable()
+        self.niveles = list(niveles)
+
     def quitar_nivel(self, numero_nivel: int) -> None:
         self._validar_editable()
         nivel = self._buscar_nivel(numero_nivel)

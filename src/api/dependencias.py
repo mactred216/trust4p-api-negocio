@@ -271,11 +271,11 @@ def obtener_caso_uso_consultar_auditoria(
 
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     AgregarDimension, AgregarEjePerfilCultural, AgregarNivel,
-    AgregarPerfilCultura, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
-    CrearNuevaVersion, DesactivarPregunta, EditarDimension,
-    EditarEjePerfilCultural, EditarNivel, EditarPerfilCultura, EditarPregunta,
-    ListarModelos, ObtenerVersionVigente, Publicar, QuitarDimension,
-    QuitarEjePerfilCultural, QuitarNivel, QuitarPerfilCultura,
+    AgregarPerfilCultura, AgregarPregunta, AplicarRubricaEstandar,
+    ConsultarModelo, CrearModeloMadurez, CrearNuevaVersion, DesactivarPregunta,
+    EditarDimension, EditarEjePerfilCultural, EditarNivel, EditarPerfilCultura,
+    EditarPregunta, ListarModelos, ObtenerVersionVigente, Publicar,
+    QuitarDimension, QuitarEjePerfilCultural, QuitarNivel, QuitarPerfilCultura,
     ReactivarPregunta)
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
     RepositorioMongoModeloMadurez
@@ -357,6 +357,12 @@ def obtener_caso_uso_editar_nivel(
     repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
 ) -> EditarNivel:
     return EditarNivel(repo)
+
+
+def obtener_caso_uso_aplicar_rubrica_estandar(
+    repo: RepositorioMongoModeloMadurez = Depends(obtener_repositorio_modelo_madurez),
+) -> AplicarRubricaEstandar:
+    return AplicarRubricaEstandar(repo)
 
 
 def obtener_caso_uso_quitar_nivel(

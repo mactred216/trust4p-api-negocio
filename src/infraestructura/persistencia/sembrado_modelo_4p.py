@@ -13,44 +13,14 @@ from decimal import Decimal
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from src.dominio.catalogo_rubrica import rubrica_estandar
 from src.dominio.entidades.modelo_madurez import (Dimension, EjePerfilCultural,
-                                                  ModeloMadurez, Nivel,
+                                                  ModeloMadurez,
                                                   OpcionPregunta, Pregunta)
 from src.infraestructura.persistencia.repositorio_mongo_modelo_madurez import \
     RepositorioMongoModeloMadurez
 
 VERSION_MODELO_4P = "2026.1"
-
-NIVELES = [
-    (
-        1,
-        "Inicial",
-        "La práctica no existe o se ejecuta de forma reactiva y aislada.",
-        0,
-        25,
-    ),
-    (
-        2,
-        "En desarrollo",
-        "La práctica existe de manera parcial, sin periodicidad ni responsables definidos.",
-        25,
-        50,
-    ),
-    (
-        3,
-        "Sistemático",
-        "La práctica está formalizada, se ejecuta con periodicidad y produce evidencia verificable.",
-        50,
-        75,
-    ),
-    (
-        4,
-        "Optimizado",
-        "La práctica se mide, se compara y se ajusta de forma continua con base en resultados.",
-        75,
-        100,
-    ),
-]
 
 DIMENSIONES = [
     ("proposito", "Propósito", "Estrategia y dirección", 1),
@@ -332,16 +302,7 @@ def construir_modelo_4p() -> ModeloMadurez:
                 ],
             )
         )
-    for numero, nombre, descripcion, minimo, maximo in NIVELES:
-        modelo.agregar_nivel(
-            Nivel(
-                nivel=numero,
-                nombre=nombre,
-                descripcion=descripcion,
-                umbral_min=Decimal(minimo),
-                umbral_max=Decimal(maximo),
-            )
-        )
+    modelo.reemplazar_niveles(rubrica_estandar(modelo.escala_min, modelo.escala_max))
     for codigo, nombre, alto_c, alto_n, bajo_c, bajo_n, dimension in EJES:
         modelo.agregar_eje_perfil_cultural(
             EjePerfilCultural(

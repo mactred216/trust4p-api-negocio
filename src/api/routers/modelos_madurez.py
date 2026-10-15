@@ -9,6 +9,7 @@ from src.api.dependencias import (obtener_caso_uso_agregar_dimension,
                                   obtener_caso_uso_agregar_nivel,
                                   obtener_caso_uso_agregar_perfil_cultura,
                                   obtener_caso_uso_agregar_pregunta,
+                                  obtener_caso_uso_aplicar_rubrica_estandar,
                                   obtener_caso_uso_consultar_modelo,
                                   obtener_caso_uso_crear_modelo_madurez,
                                   obtener_caso_uso_crear_nueva_version,
@@ -38,12 +39,12 @@ from src.api.validadores_comunes import (descripcion_opcional, entero_positivo,
                                          texto_opcional_no_vacio)
 from src.aplicacion.casos_uso.gestionar_modelo_madurez import (
     AgregarDimension, AgregarEjePerfilCultural, AgregarNivel,
-    AgregarPerfilCultura, AgregarPregunta, ConsultarModelo, CrearModeloMadurez,
-    CrearNuevaVersion, DesactivarPregunta, EditarDimension,
-    EditarEjePerfilCultural, EditarNivel, EditarPerfilCultura, EditarPregunta,
-    ListarModelos, ModeloNoEncontrado, ObtenerVersionVigente, Publicar,
-    QuitarDimension, QuitarEjePerfilCultural, QuitarNivel, QuitarPerfilCultura,
-    ReactivarPregunta, VersionDuplicada)
+    AgregarPerfilCultura, AgregarPregunta, AplicarRubricaEstandar,
+    ConsultarModelo, CrearModeloMadurez, CrearNuevaVersion, DesactivarPregunta,
+    EditarDimension, EditarEjePerfilCultural, EditarNivel, EditarPerfilCultura,
+    EditarPregunta, ListarModelos, ModeloNoEncontrado, ObtenerVersionVigente,
+    Publicar, QuitarDimension, QuitarEjePerfilCultural, QuitarNivel,
+    QuitarPerfilCultura, ReactivarPregunta, VersionDuplicada)
 
 TipoPregunta = Literal[
     "seleccion_unica", "seleccion_multiple", "escala", "numerica", "texto_libre"
@@ -917,6 +918,42 @@ async def agregar_nivel(
             "umbral_min": str(datos.umbral_min),
             "umbral_max": str(datos.umbral_max),
         },
+    )
+    return _a_response(modelo)
+
+
+@router.post(
+    "/{modelo_id}/niveles/estandar",
+    response_model=ModeloMadurezResponse,
+    summary="Aplicar la rúbrica estándar de 10 niveles",
+    description="Reemplaza la rúbrica del borrador por 10 niveles de igual amplitud sobre "
+    "su escala (con escala 0 a 100: 0-10, 10-20, ..., 90-100). Después se pueden ajustar "
+    "nombres, descripciones y rangos. No aplica a una versión publicada.",
+)
+async def aplicar_rubrica_estandar(
+    modelo_id: str,
+    caso_uso: AplicarRubricaEstandar = Depends(obtener_caso_uso_aplicar_rubrica_estandar),
+    usuario_actual_id: str = Depends(requiere_rol("administrador", "modelo.gestionar")),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+    repo_modelo=Depends(obtener_repositorio_modelo_madurez),
+):
+    antes = await repo_modelo.obtener_por_id(modelo_id)
+    cantidad_anterior = len(antes.niveles) if antes else None
+    try:
+        modelo = await caso_uso.ejecutar(modelo_id)
+    except ModeloNoEncontrado:
+        raise HTTPException(status_code=404, detail="Modelo de madurez no encontrado")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_actual_id,
+        "modelos_madurez",
+        modelo_id,
+        "actualizar",
+        valores_anteriores={"niveles": cantidad_anterior},
+        valores_nuevos={"rubrica_estandar_aplicada": len(modelo.niveles)},
     )
     return _a_response(modelo)
 

@@ -48,6 +48,12 @@ PERMISOS_SISTEMA: list[tuple[str, str, str, str]] = [
         "Consultar y descargar el informe de las empresas dentro de su alcance",
     ),
     (
+        "diagnosticos.reprocesar",
+        "consultoria",
+        "Reprocesar evaluaciones fallidas",
+        "Reintentar la evaluación asistida de un diagnóstico que quedó fallido (el administrador, de cualquier empresa)",
+    ),
+    (
         "empresas.gestionar",
         "empresas",
         "Gestionar empresas",
@@ -119,6 +125,7 @@ PERMISOS_POR_ROL: dict[str, list[str]] = {
         "diagnosticos.consultar",
         "recomendaciones.registrar",
         "diagnosticos.cerrar",
+        "diagnosticos.reprocesar",
         "indicadores.consultar",
         "informes.descargar",
     ],
@@ -133,6 +140,7 @@ PERMISOS_POR_ROL: dict[str, list[str]] = {
         "informes.descargar",
         "modelo.gestionar",
         "modelo.simular",
+        "diagnosticos.reprocesar",
     ],
 }
 

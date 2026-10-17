@@ -1,3 +1,5 @@
+import logging
+
 from src.aplicacion.servicios.notificar import enviar_notificacion
 from src.dominio.entidades.diagnostico import (Diagnostico, DimensionResultado,
                                                PerfilCulturaResultado,
@@ -13,6 +15,8 @@ from src.dominio.puertos.repositorio_usuario import RepositorioUsuario
 from src.dominio.puertos.servicio_correo import ServicioCorreo
 from src.dominio.servicios.motor_calculo import (RubricaNoCubreElIndice,
                                                  calcular_resultado)
+
+registro = logging.getLogger("trust4p.evaluacion")
 
 
 class EvaluarDiagnostico:
@@ -44,7 +48,21 @@ class EvaluarDiagnostico:
         self._correo = servicio_correo
         self._notificaciones = repo_notificacion
 
-    async def ejecutar(self, diagnostico_id: str) -> None:
+    async def ejecutar_en_serie(self, diagnosticos_ids: list[str]) -> None:
+        """Evaluación diferida de varios diagnósticos (reproceso de los
+        'fallido'): uno tras otro, sin avisar al administrador de cada fallo
+        —el reproceso lo pidió él— y sin que el error de uno detenga a los
+        demás. Si el servicio de evaluación sigue caído, el cortocircuito
+        deja pasar los restantes al instante."""
+        for diagnostico_id in diagnosticos_ids:
+            try:
+                await self.ejecutar(diagnostico_id, notificar_fallo=False)
+            except Exception:
+                registro.exception(
+                    "Falló el reproceso del diagnóstico %s", diagnostico_id
+                )
+
+    async def ejecutar(self, diagnostico_id: str, notificar_fallo: bool = True) -> None:
         diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
         if diagnostico is None:
             return
@@ -55,7 +73,8 @@ class EvaluarDiagnostico:
                 "La versión del modelo de madurez aplicada a este diagnóstico ya no existe"
             )
             await self._diagnosticos.actualizar(diagnostico)
-            await self._notificar_fallido(diagnostico)
+            if notificar_fallo:
+                await self._notificar_fallido(diagnostico)
             return
 
         try:
@@ -68,7 +87,8 @@ class EvaluarDiagnostico:
             # explicación.
             diagnostico.marcar_fallido(str(e))
             await self._diagnosticos.actualizar(diagnostico)
-            await self._notificar_fallido(diagnostico)
+            if notificar_fallo:
+                await self._notificar_fallido(diagnostico)
             return
 
         # ASR-02: se calcula y persiste el índice antes de invocar al
@@ -104,7 +124,8 @@ class EvaluarDiagnostico:
         except ServicioAgenteError as e:
             diagnostico.marcar_fallido(str(e))
             await self._diagnosticos.actualizar(diagnostico)
-            await self._notificar_fallido(diagnostico)
+            if notificar_fallo:
+                await self._notificar_fallido(diagnostico)
             return
 
         diagnostico.marcar_evaluado(

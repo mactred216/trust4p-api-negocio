@@ -527,6 +527,8 @@ def obtener_caso_uso_cerrar_diagnostico(
 
 
 from src.aplicacion.casos_uso.evaluar_diagnostico import EvaluarDiagnostico
+from src.aplicacion.casos_uso.reprocesar_diagnostico import (
+    ReprocesarDiagnostico, ReprocesarPendientes)
 from src.infraestructura.clientes.cliente_servicio_agente_http import \
     ClienteServicioAgenteHTTP
 
@@ -893,3 +895,20 @@ def obtener_caso_uso_generar_informe_de_empresa(
     ),
 ) -> GenerarInformeDeEmpresa:
     return GenerarInformeDeEmpresa(repo_usuario, repo_diagnostico)
+
+
+def obtener_caso_uso_reprocesar_diagnostico(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+    repo_usuario: RepositorioMongoUsuario = Depends(obtener_repositorio_usuario),
+) -> ReprocesarDiagnostico:
+    return ReprocesarDiagnostico(repo_diagnostico, repo_usuario)
+
+
+def obtener_caso_uso_reprocesar_pendientes(
+    repo_diagnostico: RepositorioMongoDiagnostico = Depends(
+        obtener_repositorio_diagnostico
+    ),
+) -> ReprocesarPendientes:
+    return ReprocesarPendientes(repo_diagnostico)

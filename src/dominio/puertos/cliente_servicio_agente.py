@@ -27,7 +27,7 @@ class RespuestaAgente:
 
 
 class ClienteServicioAgente(ABC):
-    """Puerto del dominio (ADR-002): ningún adaptador HTTP se referencia
+    """Puerto del dominio (ADR-011): ningún adaptador HTTP se referencia
     aquí."""
 
     @abstractmethod

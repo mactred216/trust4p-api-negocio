@@ -1,4 +1,4 @@
-# 0002. Los puertos del dominio no referencian adaptadores concretos
+# 0011. Los puertos del dominio no referencian adaptadores concretos
 
 **Estado:** Aceptado
 
@@ -8,7 +8,7 @@ El proyecto usa arquitectura hexagonal explícitamente para poder sustituir Mong
 
 ## Decisión
 
-Cada puerto en `src/dominio/puertos/` es una clase `ABC` que declara únicamente en términos del dominio (entidades y tipos primitivos) — nunca importa `motor`, `bson`, `smtplib` ni ningún símbolo de `src/infraestructura/`. Cada adaptador en `src/infraestructura/persistencia/` o `src/infraestructura/clientes/` implementa un puerto y es la única capa que conoce el motor concreto. Esta regla se declara en el docstring de cada puerto (`"Puerto del dominio. Ningún adaptador se referencia aquí (ADR-002)."`) para que sea imposible de pasar por alto al añadir uno nuevo.
+Cada puerto en `src/dominio/puertos/` es una clase `ABC` que declara únicamente en términos del dominio (entidades y tipos primitivos) — nunca importa `motor`, `bson`, `smtplib` ni ningún símbolo de `src/infraestructura/`. Cada adaptador en `src/infraestructura/persistencia/` o `src/infraestructura/clientes/` implementa un puerto y es la única capa que conoce el motor concreto. Esta regla se declara en el docstring de cada puerto (`"Puerto del dominio. Ningún adaptador se referencia aquí (ADR-011)."`) para que sea imposible de pasar por alto al añadir uno nuevo.
 
 La inyección de dependencias se ensambla en un único punto, [`dependencias.py`](../../src/api/dependencias.py), vía `Depends()` de FastAPI — ningún caso de uso instancia un adaptador directamente.
 

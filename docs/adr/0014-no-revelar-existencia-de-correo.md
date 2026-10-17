@@ -1,4 +1,4 @@
-# 0006. No revelar la existencia de un correo registrado
+# 0014. No revelar la existencia de un correo registrado
 
 **Estado:** Aceptado
 

@@ -5,7 +5,7 @@ from src.dominio.entidades.diagnostico import Diagnostico
 
 
 class RepositorioDiagnostico(ABC):
-    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-002)."""
+    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-011)."""
 
     @abstractmethod
     async def guardar(self, diagnostico: Diagnostico) -> Diagnostico: ...

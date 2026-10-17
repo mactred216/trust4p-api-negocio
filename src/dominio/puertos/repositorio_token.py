@@ -5,7 +5,7 @@ from src.dominio.entidades.token_verificacion import TokenVerificacion
 
 
 class RepositorioToken(ABC):
-    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-002)."""
+    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-011)."""
 
     @abstractmethod
     async def guardar(

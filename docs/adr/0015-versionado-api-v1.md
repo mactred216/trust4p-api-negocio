@@ -1,4 +1,4 @@
-# 0007. Versionado de la API bajo prefijo `/v1`
+# 0015. Versionado de la API bajo prefijo `/v1`
 
 **Estado:** Aceptado
 

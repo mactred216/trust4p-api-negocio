@@ -33,7 +33,7 @@ PERMISOS_SISTEMA: list[tuple[str, str, str, str]] = [
         "diagnosticos.cerrar",
         "consultoria",
         "Cerrar diagnósticos",
-        "Cerrar diagnósticos de empresas asignadas",
+        "Cerrar diagnósticos de empresas asignadas (el administrador, de cualquier empresa)",
     ),
     (
         "indicadores.consultar",
@@ -131,6 +131,7 @@ PERMISOS_POR_ROL: dict[str, list[str]] = {
         "datos.exportar",
         "indicadores.consultar",
         "informes.descargar",
+        "diagnosticos.cerrar",
         "modelo.gestionar",
         "modelo.simular",
     ],

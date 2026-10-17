@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -34,6 +34,15 @@ class DiagnosticoDeReporte:
 
 
 @dataclass
+class DiagnosticoFallidoDeReporte:
+    """Diagnóstico cuya evaluación asistida falló: no tiene informe, pero se
+    puede reprocesar o cerrar."""
+
+    id: str
+    consecutivo: int
+
+
+@dataclass
 class EmpresaDeReporte:
     empresa_id: str
     nombre: str
@@ -43,6 +52,7 @@ class EmpresaDeReporte:
     numero_empleados: Optional[int]
     tamano: Optional[str]
     diagnosticos: list[DiagnosticoDeReporte]
+    fallidos: list[DiagnosticoFallidoDeReporte] = field(default_factory=list)
 
 
 def _alcance_de(usuario: Usuario) -> Optional[set[str]]:
@@ -90,9 +100,10 @@ class ListarEmpresasParaReporte:
                 continue
             if tamano and tamano_empresa != tamano:
                 continue
+            todos = await self._diagnosticos.listar_por_empresa(empresa.id)
             diagnosticos = [
                 d
-                for d in await self._diagnosticos.listar_por_empresa(empresa.id)
+                for d in todos
                 if d.estado in ESTADOS_CON_INFORME and d.resultado is not None
             ]
             resultado.append(
@@ -114,6 +125,11 @@ class ListarEmpresasParaReporte:
                             evaluado_en=d.evaluado_en,
                         )
                         for d in sorted(diagnosticos, key=lambda d: -d.consecutivo)
+                    ],
+                    fallidos=[
+                        DiagnosticoFallidoDeReporte(id=d.id, consecutivo=d.consecutivo)
+                        for d in sorted(todos, key=lambda d: -d.consecutivo)
+                        if d.estado == "fallido"
                     ],
                 )
             )

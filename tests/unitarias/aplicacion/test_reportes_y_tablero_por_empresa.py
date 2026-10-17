@@ -458,3 +458,37 @@ async def test_el_representante_ahora_tambien_descarga_el_informe_de_su_diagnost
     ).ejecutar("representante-1", d.id)
 
     assert resultado.estado == "cerrado"
+
+
+@pytest.mark.asyncio
+async def test_los_diagnosticos_fallidos_se_listan_aparte_y_no_como_informes():
+    empresas = [empresa("a", "Alfa SAS")]
+    diag = {
+        "a": [
+            diagnostico("a", consecutivo=1, estado="evaluado"),
+            diagnostico("a", consecutivo=2, estado="fallido"),
+            diagnostico("a", consecutivo=3, estado="completado"),
+        ]
+    }
+    caso = ListarEmpresasParaReporte(*repos(usuario("administrador"), empresas, diag))
+
+    [alfa] = await caso.ejecutar("administrador-1")
+
+    assert [d.consecutivo for d in alfa.diagnosticos] == [1]
+    assert [(f.id, f.consecutivo) for f in alfa.fallidos] == [("d-a-2", 2)]
+
+
+@pytest.mark.asyncio
+async def test_el_consultor_solo_ve_los_fallidos_de_sus_empresas():
+    empresas = [empresa("a", "Alfa SAS"), empresa("b", "Beta SAS")]
+    diag = {
+        "a": [diagnostico("a", estado="fallido")],
+        "b": [diagnostico("b", estado="fallido")],
+    }
+    caso = ListarEmpresasParaReporte(
+        *repos(usuario("consultor", ["a"]), empresas, diag)
+    )
+
+    r = await caso.ejecutar("consultor-1")
+
+    assert [(e.empresa_id, len(e.fallidos)) for e in r] == [("a", 1)]

@@ -38,6 +38,11 @@ class DiagnosticoReporteResponse(BaseModel):
     evaluado_en: Optional[datetime]
 
 
+class DiagnosticoFallidoResponse(BaseModel):
+    id: str
+    consecutivo: int
+
+
 class EmpresaReporteResponse(BaseModel):
     empresa_id: str
     nombre: str
@@ -47,6 +52,7 @@ class EmpresaReporteResponse(BaseModel):
     numero_empleados: Optional[int]
     tamano: Optional[str]
     diagnosticos: list[DiagnosticoReporteResponse]
+    fallidos: list[DiagnosticoFallidoResponse] = []
 
 
 @router.get(
@@ -56,7 +62,8 @@ class EmpresaReporteResponse(BaseModel):
     description="El administrador ve todas las empresas; el consultor solo las "
     "que tiene asignadas. Filtros por nombre (contiene), sector y tamaño. Cada "
     "empresa trae los diagnósticos evaluados o cerrados de los que se puede "
-    "descargar el informe.",
+    "descargar el informe y, aparte, los que quedaron con la evaluación "
+    "pendiente (`fallidos`), que se pueden reprocesar o cerrar.",
 )
 async def listar_empresas_para_reporte(
     nombre: Optional[str] = Query(default=None, max_length=100),
@@ -87,6 +94,7 @@ async def listar_empresas_para_reporte(
             diagnosticos=[
                 DiagnosticoReporteResponse(**vars(d)) for d in e.diagnosticos
             ],
+            fallidos=[DiagnosticoFallidoResponse(**vars(d)) for d in e.fallidos],
         )
         for e in empresas
     ]

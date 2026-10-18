@@ -301,7 +301,10 @@ class CompletarDiagnostico:
 
 class CerrarDiagnostico:
     """RF-23 (HU-024): el consultor cierra un diagnóstico de una empresa que
-    tiene asignada, una vez concluido el acompañamiento."""
+    tiene asignada, una vez concluido el acompañamiento. El administrador puede
+    cerrar el de cualquier empresa: así una empresa sin consultor asignado (o
+    cuyo consultor ya no está) no queda con un diagnóstico abierto que le
+    impida iniciar otro (R-05)."""
 
     def __init__(
         self, repo_diagnostico: RepositorioDiagnostico, repo_usuario: RepositorioUsuario
@@ -309,15 +312,18 @@ class CerrarDiagnostico:
         self._diagnosticos = repo_diagnostico
         self._usuarios = repo_usuario
 
-    async def ejecutar(self, consultor_id: str, diagnostico_id: str) -> Diagnostico:
+    async def ejecutar(self, usuario_id: str, diagnostico_id: str) -> Diagnostico:
         diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
         if diagnostico is None:
             raise DiagnosticoNoEncontrado()
 
-        consultor = await self._usuarios.obtener_por_id(consultor_id)
+        usuario = await self._usuarios.obtener_por_id(usuario_id)
+        if usuario is None:
+            raise AccesoNoAutorizado()
+        es_administrador = usuario.rol.codigo == "administrador"
         if (
-            consultor is None
-            or diagnostico.empresa_id not in consultor.empresas_asignadas_vigentes()
+            not es_administrador
+            and diagnostico.empresa_id not in usuario.empresas_asignadas_vigentes()
         ):
             raise AccesoNoAutorizado()
 

@@ -20,7 +20,7 @@ from src.api.dependencias import (obtener_caso_uso_cerrar_diagnostico,
                                   obtener_repositorio_auditoria,
                                   obtener_repositorio_modelo_madurez)
 from src.api.middleware.auditoria import registrar_accion
-from src.api.middleware.autorizacion import requiere_rol
+from src.api.middleware.autorizacion import requiere_algun_rol, requiere_rol
 from src.api.validadores_comunes import texto_no_vacio
 from src.aplicacion.casos_uso.consultar_evolucion import \
     ConsultarEvolucionDiagnosticos
@@ -683,14 +683,21 @@ async def completar_diagnostico(
     "/{diagnostico_id}/cerrar",
     response_model=DiagnosticoResponse,
     summary="Cerrar el diagnóstico",
-    description="RF-23/HU-024: exclusivo del consultor con la empresa "
-    "asignada vigente. Pasa el diagnóstico de 'evaluado' o 'fallido' a "
-    "'cerrado'; a partir de ahí no admite nuevas recomendaciones.",
+    description="RF-23/HU-024: el consultor con la empresa asignada vigente, o "
+    "el administrador para cualquier empresa. Pasa el diagnóstico de 'evaluado' "
+    "o 'fallido' a 'cerrado'; a partir de ahí no admite nuevas recomendaciones.",
 )
 async def cerrar_diagnostico(
     diagnostico_id: str,
     caso_uso: CerrarDiagnostico = Depends(obtener_caso_uso_cerrar_diagnostico),
-    usuario_id: str = Depends(requiere_rol("consultor", "diagnosticos.cerrar")),
+    usuario_id: str = Depends(
+        requiere_algun_rol(
+            {
+                "consultor": "diagnosticos.cerrar",
+                "administrador": "diagnosticos.cerrar",
+            }
+        )
+    ),
     repo_auditoria=Depends(obtener_repositorio_auditoria),
 ):
     try:

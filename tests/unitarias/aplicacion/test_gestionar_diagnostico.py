@@ -638,3 +638,76 @@ async def test_cerrar_diagnostico_inexistente_falla():
     caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
     with pytest.raises(DiagnosticoNoEncontrado):
         await caso_uso.ejecutar("consultor-1", "diag-inexistente")
+
+
+def crear_administrador_prueba():
+    return Usuario(
+        id="admin-1",
+        correo="admin@trust4p.com",
+        clave_hash="hash",
+        nombres="Ada",
+        apellidos="Admin",
+        rol=Rol(codigo="administrador"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_administrador_cierra_diagnostico_de_empresa_sin_consultor():
+    """Hallazgo de la verificación: la empresa sin consultor asignado no debe
+    quedar con un diagnóstico abierto para siempre."""
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.estado = "evaluado"
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_administrador_prueba()
+
+    caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
+    resultado = await caso_uso.ejecutar("admin-1", "diag-1")
+
+    assert resultado.estado == "cerrado"
+    repo_diagnostico.actualizar.assert_called_once_with(diagnostico)
+
+
+@pytest.mark.asyncio
+async def test_administrador_tambien_cierra_diagnostico_fallido():
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.estado = "fallido"
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_administrador_prueba()
+
+    caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
+    resultado = await caso_uso.ejecutar("admin-1", "diag-1")
+
+    assert resultado.estado == "cerrado"
+
+
+@pytest.mark.asyncio
+async def test_administrador_no_cierra_diagnostico_en_proceso():
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.estado = "completado"
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = crear_administrador_prueba()
+
+    caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
+    with pytest.raises(ValueError):
+        await caso_uso.ejecutar("admin-1", "diag-1")
+    repo_diagnostico.actualizar.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cerrar_diagnostico_usuario_inexistente_falla():
+    diagnostico = crear_diagnostico_prueba()
+    diagnostico.estado = "evaluado"
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = None
+
+    caso_uso = CerrarDiagnostico(repo_diagnostico, repo_usuario)
+    with pytest.raises(AccesoNoAutorizado):
+        await caso_uso.ejecutar("fantasma", "diag-1")

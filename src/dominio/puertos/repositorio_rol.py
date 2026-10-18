@@ -5,7 +5,7 @@ from src.dominio.entidades.rol import RolCatalogo
 
 
 class RepositorioRol(ABC):
-    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-002)."""
+    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-011)."""
 
     @abstractmethod
     async def guardar(self, rol: RolCatalogo) -> RolCatalogo: ...

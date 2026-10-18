@@ -5,7 +5,7 @@ from src.dominio.entidades.empresa import Empresa
 
 
 class RepositorioEmpresa(ABC):
-    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-002)."""
+    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-011)."""
 
     @abstractmethod
     async def guardar(self, empresa: Empresa) -> Empresa: ...

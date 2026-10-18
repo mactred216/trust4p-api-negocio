@@ -1,4 +1,4 @@
-# 0001. Sesión con estado en servidor, no JWT
+# 0010. Sesión con estado en servidor, no JWT
 
 **Estado:** Aceptado
 

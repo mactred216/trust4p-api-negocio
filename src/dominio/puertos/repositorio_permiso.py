@@ -5,7 +5,7 @@ from src.dominio.entidades.permiso import Permiso
 
 
 class RepositorioPermiso(ABC):
-    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-002)."""
+    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-011)."""
 
     @abstractmethod
     async def guardar(self, permiso: Permiso) -> Permiso: ...

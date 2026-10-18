@@ -5,7 +5,7 @@ from src.dominio.entidades.modelo_madurez import ModeloMadurez
 
 
 class RepositorioModeloMadurez(ABC):
-    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-002)."""
+    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-011)."""
 
     @abstractmethod
     async def guardar(self, modelo: ModeloMadurez) -> ModeloMadurez: ...

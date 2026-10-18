@@ -1,4 +1,4 @@
-# 0004. Validación de entrada en Pydantic, separada de las reglas de negocio del dominio
+# 0013. Validación de entrada en Pydantic, separada de las reglas de negocio del dominio
 
 **Estado:** Aceptado
 

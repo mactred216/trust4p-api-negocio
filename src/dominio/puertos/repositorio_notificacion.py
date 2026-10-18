@@ -4,7 +4,7 @@ from src.dominio.entidades.notificacion import Notificacion
 
 
 class RepositorioNotificacion(ABC):
-    """Puerto del dominio (ADR-002). Colección de solo anexado: no expone
+    """Puerto del dominio (ADR-011). Colección de solo anexado: no expone
     actualización ni eliminación."""
 
     @abstractmethod

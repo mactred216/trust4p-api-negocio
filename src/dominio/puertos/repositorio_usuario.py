@@ -5,7 +5,7 @@ from src.dominio.entidades.usuario import Usuario
 
 
 class RepositorioUsuario(ABC):
-    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-002)."""
+    """Puerto del dominio. Ningún adaptador se referencia aquí (ADR-011)."""
 
     @abstractmethod
     async def obtener_por_correo(self, correo: str) -> Optional[Usuario]: ...

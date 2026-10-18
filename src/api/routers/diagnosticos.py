@@ -29,14 +29,14 @@ from src.aplicacion.casos_uso.consultar_evolucion import \
 from src.aplicacion.casos_uso.evaluar_diagnostico import EvaluarDiagnostico
 from src.aplicacion.casos_uso.generar_informe import (
     DiagnosticoSinResultado, GenerarInformeDiagnostico, nombres_de_dimensiones)
-from src.aplicacion.casos_uso.reprocesar_diagnostico import (
-    ReprocesarDiagnostico, ReprocesarPendientes)
 from src.aplicacion.casos_uso.gestionar_diagnostico import (
     AccesoNoAutorizado, CerrarDiagnostico, CompletarDiagnostico,
     ConsultarDiagnostico, DiagnosticoEnCursoExistente, DiagnosticoNoEncontrado,
     GuardarRespuesta, IniciarDiagnostico, ListarDiagnosticosDeEmpresa,
     NoHayVersionVigente, ObtenerCuestionario, ObtenerDiagnosticoEnCurso,
     PreguntasPendientes)
+from src.aplicacion.casos_uso.reprocesar_diagnostico import (
+    ReprocesarDiagnostico, ReprocesarPendientes)
 from src.dominio.entidades.diagnostico import NIVELES_PARA_NUEVO_DIAGNOSTICO
 from src.infraestructura.informes.generador_informe_pdf import \
     generar_informe_pdf

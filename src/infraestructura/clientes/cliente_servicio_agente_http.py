@@ -8,7 +8,8 @@ from src.dominio.puertos.cliente_servicio_agente import (ClienteServicioAgente,
                                                          RespuestaAgente,
                                                          ServicioAgenteError)
 from src.dominio.servicios.motor_calculo import ResultadoCalculo
-from src.infraestructura.clientes.interruptor_circuito import     InterruptorDeCircuito
+from src.infraestructura.clientes.interruptor_circuito import \
+    InterruptorDeCircuito
 
 # El agente responde en segundos, pero su servicio escala a cero: la primera
 # evaluación tras un periodo de inactividad paga además el arranque en frío de

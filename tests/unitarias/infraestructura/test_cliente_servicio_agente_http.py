@@ -6,7 +6,8 @@ import pytest
 from src.dominio.puertos.cliente_servicio_agente import ServicioAgenteError
 from src.infraestructura.clientes.cliente_servicio_agente_http import (
     TIEMPO_ESPERA_POR_DEFECTO, ClienteServicioAgenteHTTP)
-from src.infraestructura.clientes.interruptor_circuito import     InterruptorDeCircuito
+from src.infraestructura.clientes.interruptor_circuito import \
+    InterruptorDeCircuito
 
 
 def test_el_plazo_por_defecto_cubre_el_arranque_en_frio_del_agente():

@@ -23,7 +23,7 @@ El punto de entrada es `src/api/main.py`; el ciclo de vida del proceso asegura e
 
 ## Contrato de la API
 
-El contrato OpenAPI vigente está en [`docs/api/openapi.json`](docs/api/openapi.json) (73 rutas, 85 operaciones, incluida `/salud`). La documentación interactiva se sirve en `/docs` cuando el servicio corre. Para regenerarlo:
+El contrato OpenAPI vigente está en [`docs/api/openapi.json`](docs/api/openapi.json) (75 rutas, 87 operaciones, incluida `/salud`). La documentación interactiva se sirve en `/docs` cuando el servicio corre. Para regenerarlo:
 
 ```bash
 PYTHONPATH=. MONGO_URI=mongodb://localhost:1 python -c "import json; from src.api.main import app; json.dump(app.openapi(), open('docs/api/openapi.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=2, sort_keys=True)"

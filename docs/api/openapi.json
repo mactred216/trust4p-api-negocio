@@ -547,6 +547,24 @@
         "title": "CuestionarioResponse",
         "type": "object"
       },
+      "DiagnosticoFallidoResponse": {
+        "properties": {
+          "consecutivo": {
+            "title": "Consecutivo",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "consecutivo"
+        ],
+        "title": "DiagnosticoFallidoResponse",
+        "type": "object"
+      },
       "DiagnosticoReporteResponse": {
         "properties": {
           "consecutivo": {
@@ -1743,6 +1761,14 @@
           "empresa_id": {
             "title": "Empresa Id",
             "type": "string"
+          },
+          "fallidos": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticoFallidoResponse"
+            },
+            "title": "Fallidos",
+            "type": "array"
           },
           "nit": {
             "anyOf": [
@@ -3369,6 +3395,27 @@
           "registrado_en"
         ],
         "title": "RegistroAuditoriaResponse",
+        "type": "object"
+      },
+      "ReprocesoPendientesResponse": {
+        "properties": {
+          "diagnosticos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Diagnosticos",
+            "type": "array"
+          },
+          "en_cola": {
+            "title": "En Cola",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "en_cola",
+          "diagnosticos"
+        ],
+        "title": "ReprocesoPendientesResponse",
         "type": "object"
       },
       "RespuestaDemoRequest": {
@@ -5220,6 +5267,28 @@
         ]
       }
     },
+    "/v1/diagnosticos/reprocesar-pendientes": {
+      "post": {
+        "description": "RF-40/ASR-02: reanudación diferida, exclusiva del administrador. Vuelve a evaluar, uno tras otro y en segundo plano, todos los diagnósticos 'fallido'. No notifica cada fallo; si el servicio de evaluación sigue caído, el cortocircuito los deja otra vez 'fallido' al instante y pueden reprocesarse más tarde.",
+        "operationId": "reprocesar_pendientes_v1_diagnosticos_reprocesar_pendientes_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReprocesoPendientesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Reprocesar todos los diagnósticos fallidos",
+        "tags": [
+          "diagnosticos"
+        ]
+      }
+    },
     "/v1/diagnosticos/{diagnostico_id}": {
       "get": {
         "operationId": "consultar_diagnostico_v1_diagnosticos__diagnostico_id__get",
@@ -5264,7 +5333,7 @@
     },
     "/v1/diagnosticos/{diagnostico_id}/cerrar": {
       "post": {
-        "description": "RF-23/HU-024: exclusivo del consultor con la empresa asignada vigente. Pasa el diagnóstico de 'evaluado' o 'fallido' a 'cerrado'; a partir de ahí no admite nuevas recomendaciones.",
+        "description": "RF-23/HU-024: el consultor con la empresa asignada vigente, o el administrador para cualquier empresa. Pasa el diagnóstico de 'evaluado' o 'fallido' a 'cerrado'; a partir de ahí no admite nuevas recomendaciones.",
         "operationId": "cerrar_diagnostico_v1_diagnosticos__diagnostico_id__cerrar_post",
         "parameters": [
           {
@@ -5427,6 +5496,49 @@
           }
         },
         "summary": "Descargar el informe del diagnóstico",
+        "tags": [
+          "diagnosticos"
+        ]
+      }
+    },
+    "/v1/diagnosticos/{diagnostico_id}/reprocesar": {
+      "post": {
+        "description": "RF-40/ASR-02: vuelve a evaluar un diagnóstico que quedó 'fallido' (el servicio de evaluación asistida no respondió). El administrador puede hacerlo con cualquier empresa; el consultor, con las que tiene asignadas. El índice se recalcula y la interpretación se genera en segundo plano; las recomendaciones que el consultor ya hubiera registrado se conservan.",
+        "operationId": "reprocesar_diagnostico_v1_diagnosticos__diagnostico_id__reprocesar_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "diagnostico_id",
+            "required": true,
+            "schema": {
+              "title": "Diagnostico Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reprocesar la evaluación de un diagnóstico fallido",
         "tags": [
           "diagnosticos"
         ]
@@ -7351,7 +7463,7 @@
     },
     "/v1/reportes/empresas": {
       "get": {
-        "description": "El administrador ve todas las empresas; el consultor solo las que tiene asignadas. Filtros por nombre (contiene), sector y tamaño. Cada empresa trae los diagnósticos evaluados o cerrados de los que se puede descargar el informe.",
+        "description": "El administrador ve todas las empresas; el consultor solo las que tiene asignadas. Filtros por nombre (contiene), sector y tamaño. Cada empresa trae los diagnósticos evaluados o cerrados de los que se puede descargar el informe y, aparte, los que quedaron con la evaluación pendiente (`fallidos`), que se pueden reprocesar o cerrar.",
         "operationId": "listar_empresas_para_reporte_v1_reportes_empresas_get",
         "parameters": [
           {

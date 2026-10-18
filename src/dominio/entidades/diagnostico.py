@@ -226,7 +226,12 @@ class Diagnostico:
                 nivel_maximo is None or siguiente <= nivel_maximo
             ):
                 recomendacion.nivel_objetivo = siguiente
-        self.recomendaciones = recomendaciones
+        # Las del consultor (registradas mientras el diagnóstico estaba
+        # 'fallido', antes de un reproceso) se conservan; solo se reemplazan
+        # las generadas por el agente.
+        self.recomendaciones = [
+            r for r in self.recomendaciones if r.origen != "agente"
+        ] + recomendaciones
         self.estado = "evaluado"
         self.evaluado_en = datetime.now(timezone.utc)
 
@@ -242,6 +247,19 @@ class Diagnostico:
             )
         self.estado = "fallido"
         self.motivo_fallo = motivo
+
+    def reabrir_para_reproceso(self) -> None:
+        """RF-40/ASR-02: la evaluación diferida. Un diagnóstico 'fallido'
+        vuelve a 'completado' para que se evalúe de nuevo; sus respuestas y su
+        resultado calculado no se tocan (la evaluación los recalcula con la
+        versión del modelo que ya tenía). Solo procede desde 'fallido': ni un
+        diagnóstico en proceso, ni uno evaluado, ni uno cerrado."""
+        if self.estado != "fallido":
+            raise ValueError(
+                f"Solo un diagnóstico fallido puede reprocesarse (estado actual: {self.estado})"
+            )
+        self.estado = "completado"
+        self.motivo_fallo = None
 
     def agregar_recomendacion_consultor(
         self,

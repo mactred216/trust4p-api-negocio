@@ -17,6 +17,8 @@ from src.api.dependencias import (obtener_caso_uso_cerrar_diagnostico,
                                   obtener_caso_uso_iniciar_diagnostico,
                                   obtener_caso_uso_listar_diagnosticos_empresa,
                                   obtener_caso_uso_obtener_cuestionario,
+                                  obtener_caso_uso_reprocesar_diagnostico,
+                                  obtener_caso_uso_reprocesar_pendientes,
                                   obtener_repositorio_auditoria,
                                   obtener_repositorio_modelo_madurez)
 from src.api.middleware.auditoria import registrar_accion
@@ -33,6 +35,8 @@ from src.aplicacion.casos_uso.gestionar_diagnostico import (
     GuardarRespuesta, IniciarDiagnostico, ListarDiagnosticosDeEmpresa,
     NoHayVersionVigente, ObtenerCuestionario, ObtenerDiagnosticoEnCurso,
     PreguntasPendientes)
+from src.aplicacion.casos_uso.reprocesar_diagnostico import (
+    ReprocesarDiagnostico, ReprocesarPendientes)
 from src.dominio.entidades.diagnostico import NIVELES_PARA_NUEVO_DIAGNOSTICO
 from src.infraestructura.informes.generador_informe_pdf import \
     generar_informe_pdf
@@ -721,3 +725,96 @@ async def cerrar_diagnostico(
         valores_nuevos={"estado": "cerrado"},
     )
     return _a_response(diagnostico)
+
+
+@router.post(
+    "/{diagnostico_id}/reprocesar",
+    response_model=DiagnosticoResponse,
+    summary="Reprocesar la evaluación de un diagnóstico fallido",
+    description="RF-40/ASR-02: vuelve a evaluar un diagnóstico que quedó "
+    "'fallido' (el servicio de evaluación asistida no respondió). El "
+    "administrador puede hacerlo con cualquier empresa; el consultor, con las "
+    "que tiene asignadas. El índice se recalcula y la interpretación se genera "
+    "en segundo plano; las recomendaciones que el consultor ya hubiera "
+    "registrado se conservan.",
+)
+async def reprocesar_diagnostico(
+    diagnostico_id: str,
+    background_tasks: BackgroundTasks,
+    caso_uso: ReprocesarDiagnostico = Depends(obtener_caso_uso_reprocesar_diagnostico),
+    caso_uso_evaluar: EvaluarDiagnostico = Depends(
+        obtener_caso_uso_evaluar_diagnostico
+    ),
+    usuario_id: str = Depends(
+        requiere_algun_rol(
+            {
+                "consultor": "diagnosticos.reprocesar",
+                "administrador": "diagnosticos.reprocesar",
+            }
+        )
+    ),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    try:
+        diagnostico = await caso_uso.ejecutar(usuario_id, diagnostico_id)
+    except DiagnosticoNoEncontrado:
+        raise HTTPException(status_code=404, detail="Diagnóstico no encontrado")
+    except AccesoNoAutorizado:
+        raise HTTPException(
+            status_code=403,
+            detail="No tiene una asignación vigente con la empresa de este diagnóstico",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await registrar_accion(
+        repo_auditoria,
+        usuario_id,
+        "diagnosticos",
+        diagnostico_id,
+        "actualizar",
+        valores_anteriores={"estado": "fallido"},
+        valores_nuevos={"estado": "completado", "motivo": "reproceso de la evaluación"},
+    )
+    background_tasks.add_task(caso_uso_evaluar.ejecutar, diagnostico.id)
+    return _a_response(diagnostico)
+
+
+class ReprocesoPendientesResponse(BaseModel):
+    en_cola: int
+    diagnosticos: list[str]
+
+
+@router.post(
+    "/reprocesar-pendientes",
+    response_model=ReprocesoPendientesResponse,
+    summary="Reprocesar todos los diagnósticos fallidos",
+    description="RF-40/ASR-02: reanudación diferida, exclusiva del "
+    "administrador. Vuelve a evaluar, uno tras otro y en segundo plano, todos "
+    "los diagnósticos 'fallido'. No notifica cada fallo; si el servicio de "
+    "evaluación sigue caído, el cortocircuito los deja otra vez 'fallido' al "
+    "instante y pueden reprocesarse más tarde.",
+)
+async def reprocesar_pendientes(
+    background_tasks: BackgroundTasks,
+    caso_uso: ReprocesarPendientes = Depends(obtener_caso_uso_reprocesar_pendientes),
+    caso_uso_evaluar: EvaluarDiagnostico = Depends(
+        obtener_caso_uso_evaluar_diagnostico
+    ),
+    usuario_id: str = Depends(
+        requiere_rol("administrador", "diagnosticos.reprocesar")
+    ),
+    repo_auditoria=Depends(obtener_repositorio_auditoria),
+):
+    ids = await caso_uso.ejecutar()
+    if ids:
+        await registrar_accion(
+            repo_auditoria,
+            usuario_id,
+            "diagnosticos",
+            None,
+            "actualizar",
+            valores_nuevos={"reproceso_de": ids},
+        )
+        background_tasks.add_task(caso_uso_evaluar.ejecutar_en_serie, ids)
+    return ReprocesoPendientesResponse(en_cola=len(ids), diagnosticos=ids)

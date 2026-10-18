@@ -8,6 +8,8 @@ from src.dominio.puertos.cliente_servicio_agente import (ClienteServicioAgente,
                                                          RespuestaAgente,
                                                          ServicioAgenteError)
 from src.dominio.servicios.motor_calculo import ResultadoCalculo
+from src.infraestructura.clientes.interruptor_circuito import \
+    InterruptorDeCircuito
 
 # El agente responde en segundos, pero su servicio escala a cero: la primera
 # evaluación tras un periodo de inactividad paga además el arranque en frío de
@@ -15,6 +17,15 @@ from src.dominio.servicios.motor_calculo import ResultadoCalculo
 # interpretación aunque el agente la hubiera generado bien.
 TIEMPO_ESPERA_POR_DEFECTO = "300"
 RUTA_EVALUACIONES = "/v1/evaluaciones"
+
+# ASR-02: tras UMBRAL fallos de disponibilidad seguidos se deja de llamar al
+# agente durante ENFRIAMIENTO segundos; los diagnósticos que lleguen en ese
+# lapso quedan 'fallido' al instante (con su índice ya calculado) y se
+# reprocesan después, en vez de esperar cada uno el plazo completo.
+INTERRUPTOR_AGENTE = InterruptorDeCircuito(
+    umbral=int(os.getenv("AGENTE_CIRCUITO_UMBRAL", "3")),
+    enfriamiento=float(os.getenv("AGENTE_CIRCUITO_ENFRIAMIENTO_SEGUNDOS", "60")),
+)
 
 
 class ClienteServicioAgenteHTTP(ClienteServicioAgente):
@@ -28,6 +39,7 @@ class ClienteServicioAgenteHTTP(ClienteServicioAgente):
         url_base: str | None = None,
         api_key: str | None = None,
         tiempo_espera: float | None = None,
+        interruptor: InterruptorDeCircuito | None = None,
     ):
         self._url_base = (url_base or os.getenv("SERVICIO_AGENTE_URL") or "").rstrip(
             "/"
@@ -36,6 +48,7 @@ class ClienteServicioAgenteHTTP(ClienteServicioAgente):
         self._tiempo_espera = tiempo_espera or float(
             os.getenv("AGENTE_TIEMPO_ESPERA_SEGUNDOS", TIEMPO_ESPERA_POR_DEFECTO)
         )
+        self._interruptor = interruptor or INTERRUPTOR_AGENTE
 
     async def evaluar(
         self,
@@ -44,6 +57,13 @@ class ClienteServicioAgenteHTTP(ClienteServicioAgente):
         resultado_calculo: ResultadoCalculo,
     ) -> RespuestaAgente:
         payload = self._construir_solicitud(diagnostico, modelo, resultado_calculo)
+        if not self._interruptor.permitir():
+            raise ServicioAgenteError(
+                "El servicio de evaluación asistida está temporalmente fuera de "
+                "servicio (cortocircuito abierto tras fallos consecutivos); la "
+                "evaluación puede reprocesarse en unos "
+                f"{self._interruptor.segundos_para_reintento()} segundos"
+            )
         try:
             async with httpx.AsyncClient(timeout=self._tiempo_espera) as cliente:
                 respuesta = await cliente.post(
@@ -52,16 +72,34 @@ class ClienteServicioAgenteHTTP(ClienteServicioAgente):
                     headers={"X-Api-Key": self._api_key or ""},
                 )
         except httpx.HTTPError as e:
+            self._interruptor.registrar_fallo()
             raise ServicioAgenteError(
                 f"Error de red al invocar al servicio del agente: {e}"
             )
 
         if respuesta.status_code != 200:
+            # Solo cuentan como caída del servicio los errores del servidor y la
+            # saturación (429); un 4xx indica que el servicio respondió.
+            if respuesta.status_code >= 500 or respuesta.status_code == 429:
+                self._interruptor.registrar_fallo()
+            else:
+                self._interruptor.registrar_exito()
             raise ServicioAgenteError(
                 f"El servicio del agente respondió {respuesta.status_code}: {respuesta.text}"
             )
 
-        datos = respuesta.json()
+        try:
+            respuesta_agente = self._a_respuesta(respuesta.json())
+        except (KeyError, TypeError, ValueError) as e:
+            self._interruptor.registrar_fallo()
+            raise ServicioAgenteError(
+                f"El servicio del agente devolvió una respuesta con formato inválido: {e!r}"
+            )
+        self._interruptor.registrar_exito()
+        return respuesta_agente
+
+    @staticmethod
+    def _a_respuesta(datos: dict) -> RespuestaAgente:
         return RespuestaAgente(
             perfil_cultura_descripcion=datos["perfil_cultura_descripcion"],
             dimensiones_observaciones=datos["dimensiones_observaciones"],

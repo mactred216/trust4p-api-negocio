@@ -8,7 +8,7 @@ La numeración es la del **catálogo unificado** del documento de arquitectura (
 |---|---|---|---|
 | ADR-001 a ADR-004 | Dos servicios; diseño hexagonal; persistencia documental; búsqueda vectorial integrada | Aceptado | SAD |
 | [ADR-005](0005-separacion-calculo-deterministico-generacion-asistida.md) | Separación entre el cálculo determinístico y la generación asistida | Aceptado | Este repositorio |
-| ADR-006 a ADR-009 | Patrón repositorio; modelo de lenguaje de la plataforma; Python con FastAPI; React con Vite | Aceptado | SAD |
+| ADR-006 a ADR-009 | Patrón repositorio; modelo de lenguaje de la plataforma (su modelo lo reemplaza ADR-021); Python con FastAPI; React con Vite | Aceptado | SAD |
 | [ADR-010](0010-sesion-con-estado-no-jwt.md) | Sesión con estado en servidor, no JWT | Aceptado | Este repositorio |
 | [ADR-011](0011-puertos-sin-referencia-a-adaptadores.md) | Los puertos del dominio no referencian adaptadores concretos | Aceptado | Este repositorio |
 | [ADR-012](0012-tokens-un-solo-uso-codigo-hasheado.md) | Tokens de un solo uso con código hasheado | Aceptado | Este repositorio |
@@ -20,5 +20,6 @@ La numeración es la del **catálogo unificado** del documento de arquitectura (
 | [ADR-018](0018-origen-unico-para-el-navegador-nginx-del-frontend.md) | Origen único para el navegador: nginx del frontend reenvía a las dos APIs | Aceptado | Frontend |
 | [ADR-019](0019-langchain-acotado-a-lectura-fragmentacion-vectorizacion.md) | LangChain acotado a lectura de PDF, fragmentación y vectorización | Aceptado | Servicio de evaluación |
 | [ADR-020](0020-desarrollo-iterativo-kanban-sin-scrum.md) | Desarrollo iterativo con tablero Kanban, sin Scrum | Aceptado | Proceso |
+| [ADR-021](0021-sustitucion-del-modelo-de-lenguaje-por-retiro-del-proveedor.md) | Sustitución del modelo de lenguaje por el retiro del proveedor | Aceptado | Servicio de evaluación |
 
 Equivalencia con la numeración anterior de este directorio: 0001 → ADR-010, 0002 → ADR-011, 0003 → ADR-012, 0004 → ADR-013, 0005 → ADR-005, 0006 → ADR-014, 0007 → ADR-015.

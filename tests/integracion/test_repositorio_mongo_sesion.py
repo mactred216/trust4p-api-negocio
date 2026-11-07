@@ -7,7 +7,6 @@ from src.dominio.entidades.usuario import Rol, Usuario
 from src.infraestructura.persistencia.repositorio_mongo_sesion import (
     DURACION_SESION_MINUTOS, RepositorioMongoSesion)
 
-
 USUARIO_ID = "65f0c0ffee0000000000a001"
 
 

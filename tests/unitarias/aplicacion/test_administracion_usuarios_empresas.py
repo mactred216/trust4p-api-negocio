@@ -4,8 +4,6 @@ from unittest.mock import AsyncMock
 import bcrypt
 import pytest
 
-from src.dominio.puertos.repositorio_token import RepositorioToken
-
 from src.aplicacion.casos_uso.completar_registro import (CompletarRegistro,
                                                          TokenInvalido)
 from src.aplicacion.casos_uso.gestionar_empresas import (CrearEmpresa,
@@ -19,6 +17,7 @@ from src.dominio.entidades.empresa import Empresa, Sector
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
 from src.dominio.entidades.usuario import Rol, Usuario
+from src.dominio.puertos.repositorio_token import RepositorioToken
 
 SECTOR = Sector(id="s1", codigo="J62", nombre="Software")
 

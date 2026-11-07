@@ -1,3 +1,4 @@
+from functools import partial
 from unittest.mock import AsyncMock
 
 import bcrypt
@@ -16,6 +17,7 @@ from src.dominio.entidades.empresa import Empresa, Sector
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
 from src.dominio.entidades.usuario import Rol, Usuario
+from src.dominio.puertos.repositorio_token import RepositorioToken
 
 SECTOR = Sector(id="s1", codigo="J62", nombre="Software")
 
@@ -146,6 +148,8 @@ def pendiente():
 def armar_completar(usuario, token):
     repo_token = AsyncMock()
     repo_token.obtener_por_codigo.return_value = token
+    # consumir() del puerto, no atómica, sobre el doble de prueba
+    repo_token.consumir.side_effect = partial(RepositorioToken.consumir, repo_token)
     repo_usuario = AsyncMock()
     repo_usuario.obtener_por_id.return_value = usuario
     return (

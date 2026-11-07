@@ -6,16 +6,21 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.dependencias import plazo_evaluacion
 from src.api.middleware.cabeceras_seguridad import CabecerasSeguridad
 from src.api.routers import (auditoria, autenticacion, consultoria, demo,
                              diagnosticos, empresas, indicadores,
                              modelo_publico, modelos_madurez, perfil, reportes,
                              roles, sectores, simulaciones, solicitudes,
                              usuarios)
+from src.aplicacion.casos_uso.evaluar_diagnostico import \
+    RecuperarEvaluacionesInterrumpidas
 from src.infraestructura.persistencia.conexion import (obtener_base_datos,
                                                        obtener_cliente)
 from src.infraestructura.persistencia.inicializacion import \
     inicializar_base_datos
+from src.infraestructura.persistencia.repositorio_mongo_diagnostico import \
+    RepositorioMongoDiagnostico
 
 load_dotenv()
 
@@ -31,6 +36,14 @@ async def ciclo_de_vida(app: FastAPI):
         await inicializar_base_datos(obtener_base_datos())
     except Exception:
         registro.exception("No se pudo inicializar la base de datos")
+    # C7: una instancia que terminó a mitad de una evaluación la deja
+    # 'completado' sin dueño; al arrancar se pasa a 'fallido' para reprocesarla.
+    try:
+        await RecuperarEvaluacionesInterrumpidas(
+            RepositorioMongoDiagnostico(obtener_base_datos()), plazo_evaluacion()
+        ).ejecutar()
+    except Exception:
+        registro.exception("No se pudieron revisar las evaluaciones interrumpidas")
     yield
 
 

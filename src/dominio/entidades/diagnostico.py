@@ -115,6 +115,8 @@ class Diagnostico:
     motivo_fallo: Optional[str] = None
     iniciado_en: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completado_en: Optional[datetime] = None
+    # Momento en que un reproceso lo devolvió a la cola de evaluación (C7).
+    reabierto_en: Optional[datetime] = None
     evaluado_en: Optional[datetime] = None
     cerrado_en: Optional[datetime] = None
     # Nivel confirmado por el consultor; None = todavía el del diagnóstico.
@@ -260,6 +262,7 @@ class Diagnostico:
             )
         self.estado = "completado"
         self.motivo_fallo = None
+        self.reabierto_en = datetime.now(timezone.utc)
 
     def agregar_recomendacion_consultor(
         self,

@@ -102,7 +102,8 @@ async def test_el_administrador_reprocesa_el_diagnostico_de_cualquier_empresa():
     )
 
     assert resultado.estado == "completado"
-    repo_diagnostico.actualizar.assert_called_once_with(diagnostico)
+    # C7: se guarda solo si en la base sigue 'fallido'
+    repo_diagnostico.actualizar_si_estado.assert_called_once_with(diagnostico, "fallido")
 
 
 @pytest.mark.asyncio
@@ -165,7 +166,7 @@ async def test_reprocesar_pendientes_reabre_todos_los_fallidos_en_orden():
     assert ids == ["diag-a", "diag-b"]
     repo_diagnostico.listar_por_estado.assert_called_once_with("fallido")
     assert a.estado == b.estado == "completado"
-    assert repo_diagnostico.actualizar.await_count == 2
+    assert repo_diagnostico.actualizar_si_estado.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -221,3 +222,42 @@ async def test_evaluar_en_serie_continua_si_una_evaluacion_lanza_una_excepcion()
     ).ejecutar_en_serie(["diag-1", "diag-2"])
 
     assert d2.estado == "evaluado"
+
+
+# --- C7: duplicados y evaluaciones interrumpidas ------------------------------
+
+
+@pytest.mark.asyncio
+async def test_si_otra_peticion_ya_lo_reabrio_el_reproceso_se_rechaza():
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.obtener_por_id.return_value = diagnostico_fallido()
+    repo_diagnostico.actualizar_si_estado.return_value = False
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = usuario("administrador")
+
+    with pytest.raises(ValueError, match="ya se está reprocesando"):
+        await ReprocesarDiagnostico(repo_diagnostico, repo_usuario).ejecutar("a", "d")
+
+
+@pytest.mark.asyncio
+async def test_reprocesar_pendientes_omite_los_que_otro_ya_reabrio():
+    a, b = diagnostico_fallido(), diagnostico_fallido()
+    a.id, b.id = "diag-a", "diag-b"
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.listar_por_estado.return_value = [a, b]
+    repo_diagnostico.actualizar_si_estado.side_effect = [True, False]
+
+    assert await ReprocesarPendientes(repo_diagnostico).ejecutar() == ["diag-a"]
+
+
+@pytest.mark.asyncio
+async def test_reprocesar_pendientes_recupera_antes_las_interrumpidas():
+    orden = []
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.listar_por_estado.side_effect = lambda e: orden.append("listar") or []
+    recuperar = AsyncMock()
+    recuperar.ejecutar.side_effect = lambda: orden.append("recuperar") or []
+
+    await ReprocesarPendientes(repo_diagnostico, recuperar).ejecutar()
+
+    assert orden == ["recuperar", "listar"]

@@ -33,7 +33,10 @@ class ReprocesarDiagnostico:
             raise AccesoNoAutorizado()
 
         diagnostico.reabrir_para_reproceso()
-        await self._diagnosticos.actualizar(diagnostico)
+        # C7: solo una de dos peticiones simultáneas lo devuelve a la cola;
+        # la otra recibe el error en lugar de lanzar una segunda evaluación.
+        if not await self._diagnosticos.actualizar_si_estado(diagnostico, "fallido"):
+            raise ValueError("El diagnóstico ya se está reprocesando")
         return diagnostico
 
 
@@ -43,13 +46,22 @@ class ReprocesarPendientes:
     identificadores para que se evalúen en segundo plano, sin intervención de
     quien los respondió. Exclusivo del administrador (lo garantiza la ruta)."""
 
-    def __init__(self, repo_diagnostico: RepositorioDiagnostico):
+    def __init__(
+        self,
+        repo_diagnostico: RepositorioDiagnostico,
+        recuperar_interrumpidas=None,
+    ):
         self._diagnosticos = repo_diagnostico
+        self._recuperar = recuperar_interrumpidas
 
     async def ejecutar(self) -> list[str]:
+        # C7: las evaluaciones perdidas por una instancia que terminó entran
+        # también en este reproceso.
+        if self._recuperar is not None:
+            await self._recuperar.ejecutar()
         ids: list[str] = []
         for diagnostico in await self._diagnosticos.listar_por_estado("fallido"):
             diagnostico.reabrir_para_reproceso()
-            await self._diagnosticos.actualizar(diagnostico)
-            ids.append(diagnostico.id)
+            if await self._diagnosticos.actualizar_si_estado(diagnostico, "fallido"):
+                ids.append(diagnostico.id)
         return ids

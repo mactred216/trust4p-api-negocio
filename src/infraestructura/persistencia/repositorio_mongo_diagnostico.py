@@ -1,5 +1,5 @@
 import hashlib
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -41,6 +41,86 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
             {"_id": ObjectId(diagnostico.id)},
             {"$set": self._a_documento(diagnostico)},
         )
+
+    async def actualizar_si_estado(
+        self, diagnostico: Diagnostico, estado_esperado: str
+    ) -> bool:
+        resultado = await self._coleccion.update_one(
+            {"_id": ObjectId(diagnostico.id), "estado": estado_esperado},
+            {"$set": self._a_documento(diagnostico)},
+        )
+        return resultado.matched_count == 1
+
+    async def reclamar_evaluacion(
+        self, diagnostico_id: str, token: str, vence_en: datetime
+    ) -> bool:
+        ahora = datetime.now(timezone.utc)
+        resultado = await self._coleccion.update_one(
+            {
+                "_id": ObjectId(diagnostico_id),
+                "estado": "completado",
+                "$or": [
+                    {"evaluacion_en_curso": None},
+                    {"evaluacion_en_curso.vence_en": {"$lt": ahora}},
+                ],
+            },
+            {
+                "$set": {
+                    "evaluacion_en_curso": {
+                        "token": token,
+                        "iniciada_en": ahora,
+                        "vence_en": vence_en,
+                    }
+                }
+            },
+        )
+        return resultado.modified_count == 1
+
+    async def liberar_evaluacion(self, diagnostico_id: str, token: str) -> None:
+        await self._coleccion.update_one(
+            {"_id": ObjectId(diagnostico_id), "evaluacion_en_curso.token": token},
+            {"$set": {"evaluacion_en_curso": None}},
+        )
+
+    async def marcar_evaluaciones_interrumpidas(
+        self, en_cola_antes_de: datetime, motivo: str
+    ) -> list[str]:
+        ahora = datetime.now(timezone.utc)
+        filtro = {
+            "estado": "completado",
+            "completado_en": {"$lt": en_cola_antes_de},
+            "$and": [
+                {
+                    "$or": [
+                        {"reabierto_en": None},
+                        {"reabierto_en": {"$lt": en_cola_antes_de}},
+                    ]
+                },
+                {
+                    "$or": [
+                        {"evaluacion_en_curso": None},
+                        {"evaluacion_en_curso.vence_en": {"$lt": ahora}},
+                    ]
+                },
+            ],
+        }
+        marcados: list[str] = []
+        async for doc in self._coleccion.find(filtro, {"_id": 1}):
+            # misma condición en la escritura: si otra instancia lo tomó
+            # entre la lectura y aquí, no se toca
+            resultado = await self._coleccion.update_one(
+                {**filtro, "_id": doc["_id"]},
+                {
+                    "$set": {
+                        "estado": "fallido",
+                        "motivo_fallo": motivo,
+                        "evaluacion_en_curso": None,
+                    }
+                },
+            )
+            if resultado.modified_count == 1:
+                marcados.append(str(doc["_id"]))
+        return marcados
 
     async def obtener_en_curso_por_empresa(
         self, empresa_id: str
@@ -133,6 +213,7 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
             motivo_fallo=doc.get("motivo_fallo"),
             iniciado_en=doc["iniciado_en"],
             completado_en=doc.get("completado_en"),
+            reabierto_en=doc.get("reabierto_en"),
             evaluado_en=doc.get("evaluado_en"),
             cerrado_en=doc.get("cerrado_en"),
         )
@@ -218,6 +299,7 @@ class RepositorioMongoDiagnostico(RepositorioDiagnostico):
             "motivo_fallo": diagnostico.motivo_fallo,
             "iniciado_en": diagnostico.iniciado_en,
             "completado_en": diagnostico.completado_en,
+            "reabierto_en": diagnostico.reabierto_en,
             "evaluado_en": diagnostico.evaluado_en,
             "cerrado_en": diagnostico.cerrado_en,
         }

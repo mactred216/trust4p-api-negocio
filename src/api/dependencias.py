@@ -1,3 +1,6 @@
+import os
+from datetime import timedelta
+
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -526,11 +529,20 @@ def obtener_caso_uso_cerrar_diagnostico(
     return CerrarDiagnostico(repo_diagnostico, repo_usuario)
 
 
-from src.aplicacion.casos_uso.evaluar_diagnostico import EvaluarDiagnostico
+from src.aplicacion.casos_uso.evaluar_diagnostico import (
+    PLAZO_EVALUACION_POR_DEFECTO, EvaluarDiagnostico,
+    RecuperarEvaluacionesInterrumpidas)
 from src.aplicacion.casos_uso.reprocesar_diagnostico import (
     ReprocesarDiagnostico, ReprocesarPendientes)
 from src.infraestructura.clientes.cliente_servicio_agente_http import \
     ClienteServicioAgenteHTTP
+
+
+def plazo_evaluacion() -> timedelta:
+    """C7: el doble de la espera máxima al agente, y nunca menos de diez
+    minutos, para no dar por interrumpida una evaluación que sigue viva."""
+    espera = int(os.getenv("AGENTE_TIEMPO_ESPERA_SEGUNDOS", "300"))
+    return max(PLAZO_EVALUACION_POR_DEFECTO, timedelta(seconds=2 * espera))
 
 
 def obtener_cliente_servicio_agente() -> ClienteServicioAgenteHTTP:
@@ -560,6 +572,7 @@ def obtener_caso_uso_evaluar_diagnostico(
         repo_usuario,
         servicio_correo,
         repo_notificacion,
+        plazo_evaluacion(),
     )
 
 
@@ -911,4 +924,7 @@ def obtener_caso_uso_reprocesar_pendientes(
         obtener_repositorio_diagnostico
     ),
 ) -> ReprocesarPendientes:
-    return ReprocesarPendientes(repo_diagnostico)
+    return ReprocesarPendientes(
+        repo_diagnostico,
+        RecuperarEvaluacionesInterrumpidas(repo_diagnostico, plazo_evaluacion()),
+    )

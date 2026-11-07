@@ -277,3 +277,65 @@ async def test_evaluar_diagnostico_inexistente_no_hace_nada():
     repo_modelo.obtener_por_version.assert_not_called()
     repo_diagnostico.actualizar.assert_not_called()
     servicio_correo.enviar.assert_not_called()
+
+
+# --- C7: una sola evaluación a la vez y recuperación tras interrupción --------
+
+
+def _caso_uso(repo_diagnostico, cliente_agente=None):
+    repo_modelo = AsyncMock()
+    repo_modelo.obtener_por_version.return_value = crear_modelo_prueba()
+    if cliente_agente is None:
+        cliente_agente = AsyncMock()
+        cliente_agente.evaluar.return_value = crear_respuesta_agente_valida()
+    repo_usuario, servicio_correo, repo_notificacion = crear_mocks_notificacion()
+    return EvaluarDiagnostico(
+        repo_diagnostico, repo_modelo, cliente_agente, repo_usuario, servicio_correo, repo_notificacion
+    )
+
+
+@pytest.mark.asyncio
+async def test_si_otra_evaluacion_lo_tiene_reclamado_no_se_evalua_de_nuevo():
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.reclamar_evaluacion.return_value = False
+    cliente_agente = AsyncMock()
+
+    await _caso_uso(repo_diagnostico, cliente_agente).ejecutar("diag-1")
+
+    cliente_agente.evaluar.assert_not_called()
+    repo_diagnostico.actualizar.assert_not_called()
+    repo_diagnostico.liberar_evaluacion.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_la_marca_de_evaluacion_se_libera_aunque_la_evaluacion_falle():
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.reclamar_evaluacion.return_value = True
+    repo_diagnostico.obtener_por_id.side_effect = RuntimeError("caída de la base")
+
+    with pytest.raises(RuntimeError):
+        await _caso_uso(repo_diagnostico).ejecutar("diag-1")
+
+    token = repo_diagnostico.reclamar_evaluacion.call_args.args[1]
+    repo_diagnostico.liberar_evaluacion.assert_awaited_once_with("diag-1", token)
+
+
+@pytest.mark.asyncio
+async def test_recuperar_interrumpidas_usa_el_plazo_y_el_motivo():
+    from datetime import datetime, timedelta, timezone
+
+    from src.aplicacion.casos_uso.evaluar_diagnostico import (
+        MOTIVO_INTERRUMPIDA, RecuperarEvaluacionesInterrumpidas)
+
+    repo_diagnostico = AsyncMock()
+    repo_diagnostico.marcar_evaluaciones_interrumpidas.return_value = ["diag-9"]
+
+    ids = await RecuperarEvaluacionesInterrumpidas(
+        repo_diagnostico, timedelta(minutes=10)
+    ).ejecutar()
+
+    assert ids == ["diag-9"]
+    limite, motivo = repo_diagnostico.marcar_evaluaciones_interrumpidas.call_args.args
+    esperado = datetime.now(timezone.utc) - timedelta(minutes=10)
+    assert abs((limite - esperado).total_seconds()) < 5
+    assert motivo == MOTIVO_INTERRUMPIDA

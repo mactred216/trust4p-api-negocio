@@ -1,4 +1,6 @@
 import logging
+import uuid
+from datetime import datetime, timedelta, timezone
 
 from src.aplicacion.servicios.notificar import enviar_notificacion
 from src.dominio.entidades.diagnostico import (Diagnostico, DimensionResultado,
@@ -17,6 +19,16 @@ from src.dominio.servicios.motor_calculo import (RubricaNoCubreElIndice,
                                                  calcular_resultado)
 
 registro = logging.getLogger("trust4p.evaluacion")
+
+# C7: plazo durante el cual una evaluación iniciada se considera viva. Debe
+# superar la espera máxima al servicio del agente (300 s por omisión) con
+# margen; pasado este plazo sin terminar, se da por interrumpida.
+PLAZO_EVALUACION_POR_DEFECTO = timedelta(minutes=10)
+MOTIVO_INTERRUMPIDA = (
+    "La evaluación se interrumpió antes de terminar (por ejemplo, porque la "
+    "instancia del servicio se detuvo). El resultado calculado se conserva y "
+    "el diagnóstico puede reprocesarse."
+)
 
 
 class EvaluarDiagnostico:
@@ -40,7 +52,9 @@ class EvaluarDiagnostico:
         repo_usuario: RepositorioUsuario,
         servicio_correo: ServicioCorreo,
         repo_notificacion: RepositorioNotificacion,
+        plazo_evaluacion: timedelta = PLAZO_EVALUACION_POR_DEFECTO,
     ):
+        self._plazo = plazo_evaluacion
         self._diagnosticos = repo_diagnostico
         self._modelos = repo_modelo_madurez
         self._cliente_agente = cliente_agente
@@ -63,6 +77,27 @@ class EvaluarDiagnostico:
                 )
 
     async def ejecutar(self, diagnostico_id: str, notificar_fallo: bool = True) -> None:
+        """C7: antes de evaluar se reclama el diagnóstico en una operación
+        atómica. Si ya hay una evaluación vigente (un reproceso pedido dos
+        veces, o dos instancias), esta no corre: nunca se evalúa dos veces a
+        la vez ni se pisan los resultados."""
+        token = uuid.uuid4().hex
+        vence_en = datetime.now(timezone.utc) + self._plazo
+        if not await self._diagnosticos.reclamar_evaluacion(
+            diagnostico_id, token, vence_en
+        ):
+            registro.info(
+                "Evaluación del diagnóstico %s omitida: ya hay otra en curso o "
+                "no está pendiente",
+                diagnostico_id,
+            )
+            return
+        try:
+            await self._evaluar(diagnostico_id, notificar_fallo)
+        finally:
+            await self._diagnosticos.liberar_evaluacion(diagnostico_id, token)
+
+    async def _evaluar(self, diagnostico_id: str, notificar_fallo: bool) -> None:
         diagnostico = await self._diagnosticos.obtener_por_id(diagnostico_id)
         if diagnostico is None:
             return
@@ -176,3 +211,31 @@ class EvaluarDiagnostico:
                     f"{diagnostico.empresa_nombre} no pudo evaluarse: {diagnostico.motivo_fallo}"
                 ),
             )
+
+
+class RecuperarEvaluacionesInterrumpidas:
+    """C7, ASR-02: la evaluación corre en segundo plano dentro de la instancia
+    que recibió la petición. Si esa instancia termina antes de acabar, el
+    diagnóstico quedaría 'completado' para siempre. Al arrancar el servicio
+    (y antes de reprocesar pendientes) los que llevan más del plazo en cola
+    sin evaluación vigente pasan a 'fallido', con su motivo, y quedan listos
+    para reprocesarse. No se relanzan solos, para no duplicar evaluaciones."""
+
+    def __init__(
+        self,
+        repo_diagnostico: RepositorioDiagnostico,
+        plazo_evaluacion: timedelta = PLAZO_EVALUACION_POR_DEFECTO,
+    ):
+        self._diagnosticos = repo_diagnostico
+        self._plazo = plazo_evaluacion
+
+    async def ejecutar(self) -> list[str]:
+        limite = datetime.now(timezone.utc) - self._plazo
+        ids = await self._diagnosticos.marcar_evaluaciones_interrumpidas(
+            limite, MOTIVO_INTERRUMPIDA
+        )
+        if ids:
+            registro.warning(
+                "Evaluaciones interrumpidas marcadas como fallidas: %s", ", ".join(ids)
+            )
+        return ids

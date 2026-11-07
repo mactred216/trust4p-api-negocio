@@ -50,12 +50,12 @@ class CompletarRegistro:
         if not acepto_tratamiento:
             raise AutorizacionRequerida()
 
-        token = await self._tokens.obtener_por_codigo(codigo_token)
-        if (
-            token is None
-            or token.tipo != TipoToken.INVITACION
-            or not token.esta_vigente()
-        ):
+        # La invitación se consume primero y en una sola operación (C6): así
+        # no existe un intervalo con la cuenta activa y el enlace todavía
+        # válido, y dos envíos simultáneos del mismo enlace no crean dos
+        # cuentas. Si el registro falla después, la invitación se libera.
+        token = await self._tokens.consumir(codigo_token, TipoToken.INVITACION)
+        if token is None:
             raise TokenInvalido()
 
         clave_hash = bcrypt.hashpw(clave.encode(), bcrypt.gensalt()).decode()
@@ -71,16 +71,22 @@ class CompletarRegistro:
             usuario.acepto_tratamiento_en = ahora
             usuario.version_politica_aceptada = VERSION_POLITICA_TRATAMIENTO_DATOS
             usuario.registro_pendiente = False
-            await self._usuarios.actualizar(usuario)
-        else:
-            solicitud = (
-                await self._solicitudes.obtener_por_id(token.solicitud_id)
-                if token.solicitud_id
-                else None
-            )
-            if solicitud is None:
-                raise TokenInvalido()
-            usuario = await self._usuarios.guardar(
+            try:
+                await self._usuarios.actualizar(usuario)
+            except Exception:
+                await self._tokens.liberar(token)
+                raise
+            return usuario
+
+        solicitud = (
+            await self._solicitudes.obtener_por_id(token.solicitud_id)
+            if token.solicitud_id
+            else None
+        )
+        if solicitud is None:
+            raise TokenInvalido()
+        try:
+            return await self._usuarios.guardar(
                 Usuario(
                     id=None,
                     correo=solicitud.correo_solicitante,
@@ -93,10 +99,9 @@ class CompletarRegistro:
                     version_politica_aceptada=VERSION_POLITICA_TRATAMIENTO_DATOS,
                 )
             )
-
-        token.marcar_usado()
-        await self._tokens.actualizar(token)
-        return usuario
+        except Exception:
+            await self._tokens.liberar(token)
+            raise
 
 
 @dataclass

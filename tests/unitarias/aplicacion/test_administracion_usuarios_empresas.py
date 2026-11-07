@@ -1,7 +1,10 @@
+from functools import partial
 from unittest.mock import AsyncMock
 
 import bcrypt
 import pytest
+
+from src.dominio.puertos.repositorio_token import RepositorioToken
 
 from src.aplicacion.casos_uso.completar_registro import (CompletarRegistro,
                                                          TokenInvalido)
@@ -146,6 +149,8 @@ def pendiente():
 def armar_completar(usuario, token):
     repo_token = AsyncMock()
     repo_token.obtener_por_codigo.return_value = token
+    # consumir() del puerto, no atómica, sobre el doble de prueba
+    repo_token.consumir.side_effect = partial(RepositorioToken.consumir, repo_token)
     repo_usuario = AsyncMock()
     repo_usuario.obtener_por_id.return_value = usuario
     return (

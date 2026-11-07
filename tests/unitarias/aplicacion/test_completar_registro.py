@@ -1,3 +1,4 @@
+from functools import partial
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,6 +10,7 @@ from src.dominio.entidades.solicitud_acceso import SolicitudAcceso
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
 from src.dominio.entidades.usuario import Rol, Usuario
+from src.dominio.puertos.repositorio_token import RepositorioToken
 
 
 def crear_token_prueba():
@@ -18,6 +20,14 @@ def crear_token_prueba():
         correo_destino="ana@innovatech.com",
         solicitud_id="sol-1",
     )
+
+
+def repo_token_con(token):
+    """Doble del repositorio de tokens con la consumir() del puerto."""
+    repo = AsyncMock()
+    repo.obtener_por_codigo.return_value = token
+    repo.consumir.side_effect = partial(RepositorioToken.consumir, repo)
+    return repo
 
 
 def crear_solicitud_aprobada():
@@ -33,8 +43,7 @@ def crear_solicitud_aprobada():
 
 @pytest.mark.asyncio
 async def test_completar_registro_exitoso():
-    repo_token = AsyncMock()
-    repo_token.obtener_por_codigo.return_value = crear_token_prueba()
+    repo_token = repo_token_con(crear_token_prueba())
     repo_usuario = AsyncMock()
     repo_usuario.guardar.side_effect = lambda u: u
     repo_solicitud = AsyncMock()
@@ -78,8 +87,7 @@ async def test_sin_autorizacion_tratamiento_falla():
 
 @pytest.mark.asyncio
 async def test_token_inexistente_falla():
-    repo_token = AsyncMock()
-    repo_token.obtener_por_codigo.return_value = None
+    repo_token = repo_token_con(None)
     repo_usuario = AsyncMock()
     repo_solicitud = AsyncMock()
 
@@ -99,8 +107,7 @@ async def test_token_inexistente_falla():
 async def test_token_ya_usado_falla():
     token = crear_token_prueba()
     token.marcar_usado()
-    repo_token = AsyncMock()
-    repo_token.obtener_por_codigo.return_value = token
+    repo_token = repo_token_con(token)
     repo_usuario = AsyncMock()
     repo_solicitud = AsyncMock()
 
@@ -215,3 +222,68 @@ async def test_consultar_invitacion_rechaza_usuario_que_ya_completo_su_registro(
 
     with pytest.raises(TokenInvalido):
         await caso_uso.ejecutar("codigo")
+
+
+# ---------------- C6: consumo atómico y compensación ----------------
+
+
+@pytest.mark.asyncio
+async def test_la_invitacion_se_consume_antes_de_crear_la_cuenta():
+    """Sin intervalo con la cuenta activa y el enlace aún válido."""
+    orden = []
+    repo_token = repo_token_con(crear_token_prueba())
+    repo_token.actualizar.side_effect = lambda t: orden.append("consumir")
+    repo_usuario = AsyncMock()
+    repo_usuario.guardar.side_effect = lambda u: orden.append("crear_usuario") or u
+    repo_solicitud = AsyncMock()
+    repo_solicitud.obtener_por_id.return_value = crear_solicitud_aprobada()
+
+    await CompletarRegistro(repo_token, repo_usuario, repo_solicitud).ejecutar(
+        "codigo-valido", "ClaveSegura123", "Ana", "Pérez", True
+    )
+
+    assert orden == ["consumir", "crear_usuario"]
+
+
+@pytest.mark.asyncio
+async def test_si_falla_la_creacion_de_la_cuenta_la_invitacion_se_libera():
+    token = crear_token_prueba()
+    repo_token = repo_token_con(token)
+    repo_usuario = AsyncMock()
+    repo_usuario.guardar.side_effect = RuntimeError("caída de la base")
+    repo_solicitud = AsyncMock()
+    repo_solicitud.obtener_por_id.return_value = crear_solicitud_aprobada()
+
+    with pytest.raises(RuntimeError):
+        await CompletarRegistro(repo_token, repo_usuario, repo_solicitud).ejecutar(
+            "codigo-valido", "ClaveSegura123", "Ana", "Pérez", True
+        )
+
+    repo_token.liberar.assert_awaited_once_with(token)
+
+
+@pytest.mark.asyncio
+async def test_si_falla_la_activacion_del_usuario_pendiente_la_invitacion_se_libera():
+    token = TokenVerificacion(
+        id="tok-2", tipo=TipoToken.INVITACION, correo_destino="c@x.com", usuario_id="u-1"
+    )
+    pendiente = Usuario(
+        id="u-1",
+        correo="c@x.com",
+        clave_hash="x",
+        nombres="C",
+        apellidos="G",
+        rol=Rol(codigo="consultor"),
+        registro_pendiente=True,
+    )
+    repo_token = repo_token_con(token)
+    repo_usuario = AsyncMock()
+    repo_usuario.obtener_por_id.return_value = pendiente
+    repo_usuario.actualizar.side_effect = RuntimeError("caída de la base")
+
+    with pytest.raises(RuntimeError):
+        await CompletarRegistro(repo_token, repo_usuario, AsyncMock()).ejecutar(
+            "codigo", "ClaveSegura123", "C", "G", True
+        )
+
+    repo_token.liberar.assert_awaited_once_with(token)

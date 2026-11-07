@@ -4,6 +4,7 @@ from typing import Optional
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ReturnDocument
 
 from src.dominio.entidades.token_verificacion import (TipoToken,
                                                       TokenVerificacion)
@@ -33,6 +34,34 @@ class RepositorioMongoToken(RepositorioToken):
             {"_id": ObjectId(token.id)},
             {"$set": {"usado_en": token.usado_en}},
         )
+
+    async def consumir(
+        self, codigo: str, tipo: TipoToken
+    ) -> Optional[TokenVerificacion]:
+        """RF-03: un solo uso, garantizado por el motor. La condición y la
+        marca de uso van en la misma operación, así que de dos peticiones
+        simultáneas con el mismo código solo una lo obtiene."""
+        ahora = datetime.now(timezone.utc)
+        doc = await self._coleccion.find_one_and_update(
+            {
+                "codigo_hash": self._hash(codigo),
+                "tipo": tipo.value,
+                "usado_en": None,
+                "expira_en": {"$gt": ahora},
+            },
+            {"$set": {"usado_en": ahora}},
+            return_document=ReturnDocument.AFTER,
+        )
+        return self._a_entidad(doc) if doc is not None else None
+
+    async def liberar(self, token: TokenVerificacion) -> None:
+        """Compensación idempotente: solo deshace la marca que puso este mismo
+        consumo (mismo instante de uso); repetirla no tiene efecto."""
+        await self._coleccion.update_one(
+            {"_id": ObjectId(token.id), "usado_en": token.usado_en},
+            {"$set": {"usado_en": None}},
+        )
+        token.usado_en = None
 
     def _hash(self, codigo: str) -> str:
         return hashlib.sha256(codigo.encode()).hexdigest()
